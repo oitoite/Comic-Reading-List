@@ -16,6 +16,9 @@ Last Hunt` is one row that expands into three tickable issues.
 - **Issue ranges** — type `294-296, 300, Annual 1` and get five issues. Prefixes (`Annual 1-3`),
   en dashes, `1 to 3` and zero padding (`001-003`) all work; anything that isn't a plain
   numeric range (`1.MU`) is kept verbatim. Expansion is capped at 500 issues per entry.
+- **Find on Marvel** — search Marvel's catalogue and let it fill everything in: issue
+  list, per-issue permalinks, writer, artist, year and cover. Needs a free public API key
+  (see below). Trim the range before adding if you only want part of a run.
 - **Bulk add** — paste a whole reading order, one entry per line:
 
   ```
@@ -80,6 +83,32 @@ API requires a server-side key hash, which a static page cannot produce.
 So permalinks are entered, not generated. Paste one per issue under **Links** in the issue tray,
 or one for a whole entry under **Direct link**. They travel in exports and share links like any
 other field.
+
+## Marvel lookup
+
+**Services → Marvel API public key** turns on the *Find on Marvel* button. To get one:
+
+1. Register at `developer.marvel.com` and copy your **public** key.
+2. Add your site to that account's **authorized referrers** — for this deployment,
+   `oitoite.github.io`. Marvel authorises browser calls by referrer, which is what lets a
+   static page talk to the API with no secret and no backend.
+3. Paste the public key into **Services**.
+
+Only the public key goes in. **Never paste the private key** — this is a static page, so
+anything it stores is readable by anyone with the browser, and every project site on a
+`github.io` account shares one origin.
+
+Because authorisation is by referrer, the lookup only works on the deployed site, not from
+a local `file://` or `localhost` copy unless you authorise those too.
+
+A search returns matching series; picking one fetches its issues (up to 500, five pages of
+100, so a long run does not burn through the daily quota) and builds an entry with the
+issue list, each issue's Marvel permalink, writer, artist, year and cover. Marvel's run
+years are stripped from the series name — they are already their own field, and leaving
+them in would end up in every generated search query.
+
+If a call fails, Marvel's own wording is shown rather than a status code, because it names
+the actual problem: a bad key, an unauthorised referrer, or the daily limit.
 
 ## Share links
 

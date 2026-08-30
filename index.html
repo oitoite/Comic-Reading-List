@@ -96,6 +96,7 @@
           <button class="icon-btn" id="gridViewBtn" title="Grid view" aria-label="Grid view">&#9638;</button>
           <button class="icon-btn is-active" id="listViewBtn" title="List view" aria-label="List view">&#9776;</button>
         </div>
+        <button class="btn" id="marvelBtn" title="Search Marvel and fill everything in automatically">Find on Marvel</button>
         <button class="btn" id="bulkBtn" title="Paste a whole reading order at once">Bulk add</button>
         <button class="btn primary" id="addEntryBtn">+ Add</button>
       </div>
@@ -109,6 +110,7 @@
       <p id="emptyText">Add a run or arc, or paste a whole reading order at once.</p>
       <div class="empty-actions">
         <button class="btn primary" id="emptyAddBtn">+ Add a run</button>
+        <button class="btn" id="emptyMarvelBtn">Find on Marvel</button>
         <button class="btn" id="emptyBulkBtn">Bulk add</button>
       </div>
     </div>
@@ -229,6 +231,38 @@ Watchmen"></textarea>
   </form>
 </dialog>
 
+<!-- Find on Marvel -->
+<dialog id="marvelDialog" class="dialog">
+  <form method="dialog" id="marvelForm" class="dialog-form">
+    <h2>Find on Marvel</h2>
+    <div class="marvel-search">
+      <label class="field">
+        <span class="sr-only">Series title</span>
+        <input id="marvelQuery" maxlength="100" autocomplete="off" placeholder="Series title &mdash; e.g. Fantastic Four">
+      </label>
+      <button class="btn" id="marvelSearchBtn" type="button">Search</button>
+    </div>
+    <p class="dialog-hint" id="marvelStatus" aria-live="polite"></p>
+    <div id="marvelResults" class="marvel-results"></div>
+
+    <div id="marvelChosen" hidden>
+      <div class="marvel-chosen">
+        <strong id="marvelChosenTitle"></strong>
+        <span class="dialog-hint" id="marvelChosenMeta"></span>
+      </div>
+      <label class="field">
+        <span>Issues to add <em>trim the range if you only want part of the run</em></span>
+        <textarea id="marvelIssues" rows="2" spellcheck="false"></textarea>
+      </label>
+    </div>
+
+    <menu class="dialog-actions">
+      <button class="btn ghost" value="cancel" type="submit" formnovalidate>Cancel</button>
+      <button class="btn primary" value="add" id="marvelAddBtn" disabled>Add to playlist</button>
+    </menu>
+  </form>
+</dialog>
+
 <!-- Per-issue links -->
 <dialog id="linksDialog" class="dialog">
   <form method="dialog" id="linksForm" class="dialog-form">
@@ -262,6 +296,18 @@ Watchmen"></textarea>
       Templates must start with <code>http://</code> or <code>https://</code>.
     </p>
     <div id="servicesFields"></div>
+
+    <label class="field marvel-key">
+      <span>Marvel API public key <em>optional &mdash; turns on &ldquo;Find on Marvel&rdquo;</em></span>
+      <input id="marvelKeyInput" maxlength="64" autocomplete="off" spellcheck="false"
+             placeholder="your public key from developer.marvel.com">
+    </label>
+    <p class="dialog-hint">
+      Get a free key at <code>developer.marvel.com</code>, then add this site to your
+      <strong>authorized referrers</strong> so Marvel accepts calls from the browser.
+      Only the <strong>public</strong> key belongs here &mdash; never the private one: this page is
+      static, so anything it stores is readable by anyone using this browser.
+    </p>
     <menu class="dialog-actions">
       <button class="btn ghost" value="cancel" type="submit" formnovalidate>Cancel</button>
       <button class="btn primary" value="save">Save services</button>
