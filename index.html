@@ -180,7 +180,7 @@
       </label>
 
       <label class="field span2">
-        <span>Direct link <em>optional &mdash; overrides the service search</em></span>
+        <span>Direct link <em>optional &mdash; whole entry; per-issue links live in the issue tray</em></span>
         <input name="url" type="url" maxlength="2000" placeholder="https://&hellip;">
       </label>
 
@@ -225,6 +225,25 @@ Watchmen"></textarea>
     <menu class="dialog-actions">
       <button class="btn ghost" value="cancel" type="submit" formnovalidate>Cancel</button>
       <button class="btn primary" value="add" id="bulkAddBtn" disabled>Add to playlist</button>
+    </menu>
+  </form>
+</dialog>
+
+<!-- Per-issue links -->
+<dialog id="linksDialog" class="dialog">
+  <form method="dialog" id="linksForm" class="dialog-form">
+    <h2 id="linksTitle">Links</h2>
+    <p class="dialog-hint">
+      Some services address individual issues by id rather than by name &mdash; a search template
+      cannot produce those, so paste them here. Open the issue on the service, copy the address bar
+      (e.g. <code>https://www.marvel.com/comics/issue/25182/fantastic-four-1998-570</code>) and drop
+      it on the matching row. A blank row falls back to the entry&rsquo;s direct link, then to the
+      service search. Links must start with <code>http://</code> or <code>https://</code>.
+    </p>
+    <div id="linksFields"></div>
+    <menu class="dialog-actions">
+      <button class="btn ghost" value="cancel" type="submit" formnovalidate>Cancel</button>
+      <button class="btn primary" value="save">Save links</button>
     </menu>
   </form>
 </dialog>

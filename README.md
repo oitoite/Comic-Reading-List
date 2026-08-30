@@ -28,8 +28,13 @@ Last Hunt` is one row that expands into three tickable issues.
   A live preview counts the entries and issues before you commit.
 - **Derived status** — every issue ticked is *Finished*, some ticked (or explicitly started) is
   *In progress*, otherwise *Not started*. There is no status field to keep in sync by hand.
-- **Service links** — each playlist has a default service and each entry can override it. Paste a
-  direct URL for an entry, or let Longbox build a search link from an editable template.
+- **Service links** — each playlist has a default service and each entry can override it. Links
+  resolve most-specific-first: an issue's own pasted URL, then the entry's, then a search link
+  built from an editable template.
+- **Per-issue links** — services that address issues by numeric id (Marvel's
+  `/comics/issue/25182/...`) cannot be reached by any search template, so the issue tray has a
+  **Links** button: one row per issue, paste and go. On a phone those permalinks hand off to the
+  service's own app.
 - **Share links** — pack a whole playlist into a URL and send it. Opening one offers a copy.
 - **Rich metadata** — writer, artist, publisher, year, cover image, tags, notes, 5-star rating.
 - **Search, filter, sort**, grid or list view, light and dark themes.
@@ -47,12 +52,20 @@ verified. The defaults fall back to a site-scoped web search, which works but is
 in-app search you probably want.
 
 Fixing that takes ten seconds and no code change: run a search inside the service in your own
-browser, copy the address bar, and paste it into **Services**, swapping the search term for
-`{q}`. Templates must start with `http://` or `https://`.
+browser, copy the address bar **of the results page** (before clicking through to an issue), and
+paste it into **Services**, swapping the search term for `{q}`. Templates must start with
+`http://` or `https://`.
 
-There is no comics metadata lookup, because there is no keyless public API for it. Marvel's
-official API requires a server-side key hash, which a static page cannot do. Entry is manual by
-design — which is exactly why bulk add and share links exist.
+### Why a template can't always do the job
+
+Marvel addresses a comic by numeric id — `https://www.marvel.com/comics/issue/25182/fantastic-four-1998-570`
+— and `{q}` only ever expands to text like `Fantastic Four #570`. Turning that text into `25182`
+is a lookup, and there is no keyless public comics metadata API to do it with: Marvel's official
+API requires a server-side key hash, which a static page cannot produce.
+
+So permalinks are entered, not generated. Paste one per issue under **Links** in the issue tray,
+or one for a whole entry under **Direct link**. They travel in exports and share links like any
+other field.
 
 ## Share links
 

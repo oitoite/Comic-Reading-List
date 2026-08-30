@@ -171,7 +171,7 @@
       out.push({
         series: str(series, 200),
         title: str(title, 200),
-        issues: labels.map(function (l) { return { label: l, done: false }; })
+        issues: labels.map(function (l) { return { label: l, done: false, url: '' }; })
       });
     });
 
@@ -220,12 +220,12 @@
     var out = [];
     if (Array.isArray(raw)) {
       raw.filter(function (i) { return i != null; }).slice(0, MAX_ISSUES).forEach(function (i) {
-        if (typeof i === 'string') out.push({ label: str(i, 40), done: false });
-        else out.push({ label: str(i.label, 40), done: !!i.done });
+        if (typeof i === 'string') out.push({ label: str(i, 40), done: false, url: '' });
+        else out.push({ label: str(i.label, 40), done: !!i.done, url: safeUrl(i.url) });
       });
     }
     /* Every entry owns at least one tickable issue, so progress is never 0 of 0. */
-    return out.length ? out : [{ label: '', done: false }];
+    return out.length ? out : [{ label: '', done: false, url: '' }];
   }
 
   function sanitizeEntry(e) {
@@ -282,7 +282,7 @@
       id: it.id,
       series: oldSeries || oldTitle,
       title: oldSeries ? oldTitle : '',
-      issues: labels.map(function (l) { return { label: l, done: read }; }),
+      issues: labels.map(function (l) { return { label: l, done: read, url: '' }; }),
       started: it.status === 'reading',
       writer: it.writer,
       artist: it.artist,
@@ -436,9 +436,15 @@
     return tpl.replace(/\{q\}/g, encodeURIComponent(q));
   }
 
-  /* A pasted direct link always wins over the generated search. */
-  function linkFor(entry, issueLabel) {
-    return entry.url || searchUrl(entry, issueLabel);
+  /* Pasted links win over the generated search, most specific first: an issue's own
+     link (services like Marvel address individual issues by id, which {q} cannot
+     produce), then the entry's, then the search. */
+  function linkForIssue(entry, issue) {
+    return (issue && issue.url) || entry.url || searchUrl(entry, issue ? issue.label : '');
+  }
+
+  function isDirect(entry, issue) {
+    return !!((issue && issue.url) || entry.url);
   }
 
   function nextIssue(entry) {
@@ -478,6 +484,9 @@
         var o = { s: en.series };
         if (en.title) o.t = en.title;
         o.i = en.issues.map(function (is) { return is.label; });
+        var iu = {};
+        en.issues.forEach(function (is, idx) { if (is.url) iu[idx] = is.url; });
+        if (Object.keys(iu).length) o.iu = iu;
         if (includeProgress) {
           var done = [];
           en.issues.forEach(function (is, idx) { if (is.done) done.push(idx); });
@@ -506,8 +515,13 @@
     var entriesRaw = Array.isArray(obj.e) ? obj.e.slice(0, MAX_SHARE_ENTRIES) : [];
     var entries = entriesRaw.filter(Boolean).map(function (o) {
       var done = Array.isArray(o.d) ? o.d : [];
+      var urls = (o.iu && typeof o.iu === 'object') ? o.iu : {};
       var issues = (Array.isArray(o.i) ? o.i : []).slice(0, MAX_ISSUES).map(function (label, idx) {
-        return { label: str(String(label == null ? '' : label), 40), done: done.indexOf(idx) !== -1 };
+        return {
+          label: str(String(label == null ? '' : label), 40),
+          done: done.indexOf(idx) !== -1,
+          url: safeUrl(urls[idx])          /* sanitised like any other incoming link */
+        };
       });
       return sanitizeEntry({
         series: o.s, title: o.t, issues: issues, started: !!o.st,
@@ -746,7 +760,8 @@
       : '';
 
     var range = single ? 'Single book' : summarizeIssues(e.issues);
-    var link = linkFor(e, nextIssue(e).label);
+    var upNext = nextIssue(e);
+    var link = linkForIssue(e, upNext);
     var svc = serviceFor(e);
 
     /* unread -> start, reading -> mark the whole run read, finished -> reset */
@@ -781,7 +796,7 @@
               'Issues ' + (ui.expanded[e.id] ? '▴' : '▾') + '</button>' +
             (link
               ? '<a class="btn ghost small" href="' + esc(link) + '" target="_blank" rel="noopener noreferrer" ' +
-                'title="' + esc((e.url ? 'Open direct link' : 'Search ' + svc.name) + (single ? '' : ' — #' + nextIssue(e).label)) + '">Read ↗</a>'
+                'title="' + esc((isDirect(e, upNext) ? 'Open direct link' : 'Search ' + svc.name) + (single ? '' : ' — #' + upNext.label)) + '">Read ↗</a>'
               : '') +
             '<button class="btn ghost small icon-act" data-act="edit" title="Edit" ' +
               'aria-label="Edit ' + esc(e.series) + '">✎</button>' +
@@ -813,6 +828,7 @@
       else if (act === 'edit') openEntryDialog(e.id);
       else if (act === 'remove') removeEntry(e.id);
       else if (act === 'issue') toggleIssue(e.id, parseInt(btn.dataset.idx, 10));
+      else if (act === 'links') openLinksDialog(e.id);
       else if (act === 'all') setAllIssues(e.id, true);
       else if (act === 'none') setAllIssues(e.id, false);
     });
@@ -824,9 +840,9 @@
   function issueTray(e) {
     var single = e.issues.length === 1 && !e.issues[0].label;
     var pills = e.issues.map(function (is, idx) {
-      var url = linkFor(e, is.label);
+      var url = linkForIssue(e, is);
       var label = is.label || 'Whole book';
-      return '<span class="pill' + (is.done ? ' is-done' : '') + '">' +
+      return '<span class="pill' + (is.done ? ' is-done' : '') + (is.url ? ' has-link' : '') + '">' +
         '<button type="button" class="pill-tick" data-act="issue" data-idx="' + idx + '" ' +
           'aria-pressed="' + (is.done ? 'true' : 'false') + '" ' +
           'title="' + (is.done ? 'Mark unread' : 'Mark read') + '">' +
@@ -835,7 +851,8 @@
         '</button>' +
         (url
           ? '<a class="pill-link" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer" ' +
-            'aria-label="Open ' + esc(e.series + ' ' + label) + '" title="Open">↗</a>'
+            'aria-label="Open ' + esc(e.series + ' ' + label) + '" ' +
+            'title="' + (is.url ? 'Open this issue&#39;s own link' : 'Open') + '">↗</a>'
           : '') +
         '</span>';
     }).join('');
@@ -843,6 +860,7 @@
     return '<div class="issue-tray">' +
       '<div class="tray-head">' +
         '<span class="tray-title">' + (single ? 'Book' : plural(e.issues.length, 'issue')) + '</span>' +
+        '<button class="btn ghost small" data-act="links">Links</button>' +
         '<button class="btn ghost small" data-act="all">Mark all</button>' +
         '<button class="btn ghost small" data-act="none">Clear</button>' +
       '</div>' +
@@ -966,16 +984,17 @@
 
   /* ---------------- entry dialog ---------------- */
 
-  /* Re-typing the issue list must not wipe read progress: ticks follow their label. */
-  function mergeDone(oldIssues, labels) {
+  /* Re-typing the issue list must not wipe read progress or pasted links:
+     both follow their label. */
+  function mergeIssues(oldIssues, labels) {
     var pool = {};
     (oldIssues || []).forEach(function (i) {
-      if (!i.done) return;
-      pool[i.label] = (pool[i.label] || 0) + 1;
+      if (!pool[i.label]) pool[i.label] = [];
+      pool[i.label].push(i);
     });
     return labels.map(function (l) {
-      if (pool[l] > 0) { pool[l]--; return { label: l, done: true }; }
-      return { label: l, done: false };
+      var prev = pool[l] && pool[l].length ? pool[l].shift() : null;
+      return { label: l, done: prev ? prev.done : false, url: prev ? prev.url : '' };
     });
   }
 
@@ -1026,7 +1045,7 @@
       id: prev ? prev.id : uid(),
       series: series,
       title: form.title.value,
-      issues: mergeDone(prev ? prev.issues : [], labels),
+      issues: mergeIssues(prev ? prev.issues : [], labels),
       started: form.started.checked,
       writer: form.writer.value,
       artist: form.artist.value,
@@ -1052,6 +1071,51 @@
     editingId = null;
     save();
     render();
+  }
+
+  /* ---------------- per-issue links ---------------- */
+
+  var linkingId = null;
+
+  function openLinksDialog(id) {
+    var e = findEntry(id);
+    if (!e) return;
+    linkingId = id;
+    $('linksTitle').textContent = 'Links for ' + entryLabel(e);
+    $('linksFields').innerHTML = e.issues.map(function (is, idx) {
+      var label = is.label || 'Whole book';
+      return '<label class="link-row">' +
+        '<span class="lr-label" title="' + esc(label) + '">' + esc(label) + '</span>' +
+        '<input data-idx="' + idx + '" type="url" maxlength="2000" spellcheck="false" ' +
+          'placeholder="https://www.marvel.com/comics/issue/&hellip;" value="' + esc(is.url) + '">' +
+      '</label>';
+    }).join('');
+    $('linksDialog').showModal();
+  }
+
+  function saveLinksFromForm() {
+    var e = linkingId ? findEntry(linkingId) : null;
+    linkingId = null;
+    if (!e) return;
+    var inputs = $('linksFields').querySelectorAll('input[data-idx]');
+    if (inputs.length !== e.issues.length) { toast('This entry changed — links not saved.'); return; }
+
+    var rejected = 0, set = 0;
+    Array.prototype.forEach.call(inputs, function (input) {
+      var is = e.issues[parseInt(input.dataset.idx, 10)];
+      if (!is) return;
+      var typed = str(input.value, 2000);
+      var ok = safeUrl(typed);
+      if (typed && !ok) { rejected++; return; }      /* keep whatever was there before */
+      is.url = ok;
+      if (ok) set++;
+    });
+
+    save();
+    render();
+    toast(rejected
+      ? plural(rejected, 'link') + ' ignored (needs http:// or https://)'
+      : (set ? plural(set, 'issue link') + ' saved' : 'Issue links cleared'));
   }
 
   /* ---------------- bulk add ---------------- */
@@ -1375,6 +1439,11 @@
       else editingId = null;
     });
 
+    $('linksDialog').addEventListener('close', function () {
+      if ($('linksDialog').returnValue === 'save') saveLinksFromForm();
+      else linkingId = null;
+    });
+
     $('bulkDialog').addEventListener('close', function () {
       if ($('bulkDialog').returnValue === 'add') addBulkFromForm();
     });
@@ -1470,6 +1539,7 @@
     decodeShare: decodeShare,
     migrateV1: migrateV1,
     statusOf: statusOf,
+    linkForIssue: linkForIssue,
     listProgress: listProgress,
     state: function () { return state; }
   };
