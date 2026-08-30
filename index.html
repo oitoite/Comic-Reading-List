@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Longbox &middot; Comic Reading List</title>
-<meta name="description" content="Track your comic book reading lists — series, issues, trades and graphic novels.">
+<title>Longbox &middot; Comic Reading Playlists</title>
+<meta name="description" content="Build ordered reading playlists of comic runs and arcs, and tick off issues as you read them on Marvel Unlimited or DC Universe Infinite.">
 <meta name="color-scheme" content="dark light">
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="assets/styles.css">
@@ -12,7 +12,8 @@
 /* Apply the saved theme before first paint so the page never flashes the wrong one. */
 (function () {
   try {
-    var s = JSON.parse(localStorage.getItem('longbox.state.v1'));
+    var s = JSON.parse(localStorage.getItem('longbox.playlists.v2'))
+         || JSON.parse(localStorage.getItem('longbox.state.v1'));
     if (s && s.prefs && s.prefs.theme === 'light') document.documentElement.setAttribute('data-theme', 'light');
   } catch (e) { /* default theme is already on <html> */ }
 })();
@@ -21,12 +22,13 @@
 <body>
 
 <header class="topbar">
-  <button class="icon-btn only-mobile" id="menuToggle" aria-label="Toggle lists panel">&#9776;</button>
+  <button class="icon-btn only-mobile" id="menuToggle" aria-label="Toggle playlists panel">&#9776;</button>
   <div class="brand">
     <span class="brand-mark" aria-hidden="true">&#9646;&#9646;&#9646;</span>
     <h1>Longbox</h1>
   </div>
   <div class="topbar-actions">
+    <button class="btn ghost" id="servicesBtn" title="Edit the search links used for Marvel Unlimited, DC Universe Infinite and others">Services</button>
     <button class="btn ghost" id="importBtn" title="Import a JSON backup">Import</button>
     <button class="btn ghost" id="exportBtn" title="Download a JSON backup">Export</button>
     <button class="icon-btn" id="themeBtn" aria-label="Toggle colour theme" title="Toggle theme">&#9789;</button>
@@ -38,12 +40,13 @@
 
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-head">
-      <h2>Reading lists</h2>
+      <h2>Playlists</h2>
       <button class="btn small" id="newListBtn">+ New</button>
     </div>
     <ul class="list-nav" id="listNav"></ul>
     <div class="sidebar-foot">
-      <p class="hint">Everything is stored in this browser. Export a backup before clearing site data.</p>
+      <button class="btn ghost small" id="servicesBtnAlt">Services &amp; search links</button>
+      <p class="hint">Counts are issues read, not entries. Everything stays in this browser &mdash; export a backup or send a share link before clearing site data.</p>
     </div>
   </aside>
 
@@ -53,104 +56,115 @@
       <div class="list-title-row">
         <h2 id="listTitle">&nbsp;</h2>
         <div class="list-title-actions">
+          <label class="inline-field">
+            <span class="sr-only">Default service for this playlist</span>
+            <select id="listService" title="Default service for this playlist"></select>
+          </label>
+          <button class="btn ghost small" id="shareBtn">Share</button>
           <button class="btn ghost small" id="renameListBtn">Rename</button>
-          <button class="btn ghost small danger" id="deleteListBtn">Delete list</button>
+          <button class="btn ghost small danger" id="deleteListBtn">Delete</button>
         </div>
       </div>
       <div class="stats" id="stats"></div>
-      <div class="progress" role="progressbar" aria-label="Reading progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progressBar">
+      <div class="progress" role="progressbar" aria-label="Issues read" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progressBar">
         <div class="progress-fill" id="progressFill"></div>
       </div>
     </section>
 
     <section class="toolbar">
       <div class="search-wrap">
-        <input type="search" id="search" placeholder="Search title, series, creator, tag&hellip;" aria-label="Search comics">
+        <input type="search" id="search" placeholder="Search series, arc, creator, issue, tag&hellip;" aria-label="Search this playlist">
       </div>
       <div class="filters" id="statusFilter" role="group" aria-label="Filter by status">
         <button class="chip is-active" data-status="all">All</button>
-        <button class="chip" data-status="unread">Want to read</button>
-        <button class="chip" data-status="reading">Reading</button>
-        <button class="chip" data-status="read">Read</button>
+        <button class="chip" data-status="unread">Not started</button>
+        <button class="chip" data-status="reading">In progress</button>
+        <button class="chip" data-status="finished">Finished</button>
       </div>
       <div class="toolbar-right">
         <label class="sr-only" for="sort">Sort by</label>
         <select id="sort">
-          <option value="manual">Custom order</option>
+          <option value="order">Reading order</option>
           <option value="added">Recently added</option>
-          <option value="title">Title A&ndash;Z</option>
-          <option value="series">Series &amp; issue</option>
+          <option value="series">Series A&ndash;Z</option>
+          <option value="title">Arc title</option>
+          <option value="progress">Progress</option>
           <option value="year">Year</option>
           <option value="rating">Rating</option>
         </select>
         <div class="view-toggle" role="group" aria-label="View mode">
-          <button class="icon-btn is-active" id="gridViewBtn" title="Grid view" aria-label="Grid view">&#9638;</button>
-          <button class="icon-btn" id="listViewBtn" title="List view" aria-label="List view">&#9776;</button>
+          <button class="icon-btn" id="gridViewBtn" title="Grid view" aria-label="Grid view">&#9638;</button>
+          <button class="icon-btn is-active" id="listViewBtn" title="List view" aria-label="List view">&#9776;</button>
         </div>
-        <button class="btn primary" id="addComicBtn">+ Add comic</button>
+        <button class="btn" id="bulkBtn" title="Paste a whole reading order at once">Bulk add</button>
+        <button class="btn primary" id="addEntryBtn">+ Add</button>
       </div>
     </section>
 
-    <section id="comics" class="comics grid-view" aria-live="polite"></section>
+    <section id="entries" class="entries list-view numbered" aria-live="polite"></section>
 
     <div class="empty" id="empty" hidden>
       <p class="empty-art" aria-hidden="true">&#9634;</p>
-      <h3 id="emptyTitle">Nothing here yet</h3>
-      <p id="emptyText">Add your first comic to start building this list.</p>
-      <button class="btn primary" id="emptyAddBtn">+ Add comic</button>
+      <h3 id="emptyTitle">Nothing on this playlist yet</h3>
+      <p id="emptyText">Add a run or arc, or paste a whole reading order at once.</p>
+      <div class="empty-actions">
+        <button class="btn primary" id="emptyAddBtn">+ Add a run</button>
+        <button class="btn" id="emptyBulkBtn">Bulk add</button>
+      </div>
     </div>
 
   </main>
 </div>
 
-<!-- Add / edit comic -->
-<dialog id="comicDialog" class="dialog">
-  <form method="dialog" id="comicForm" class="dialog-form">
-    <h2 id="dialogTitle">Add comic</h2>
+<!-- Add / edit entry -->
+<dialog id="entryDialog" class="dialog">
+  <form method="dialog" id="entryForm" class="dialog-form">
+    <h2 id="dialogTitle">Add a run or arc</h2>
 
     <div class="field-grid">
+      <label class="field">
+        <span>Series <em>required</em></span>
+        <input name="series" id="f_series" required maxlength="200" placeholder="The Amazing Spider-Man">
+      </label>
+
+      <label class="field">
+        <span>Arc title <em>optional</em></span>
+        <input name="title" maxlength="200" placeholder="Kraven&rsquo;s Last Hunt">
+      </label>
+
       <label class="field span2">
-        <span>Title <em>required</em></span>
-        <input name="title" id="f_title" required maxlength="200" placeholder="Saga, Vol. 1">
+        <span>Issues <em>ranges and lists: 294-296, 300, Annual 1</em></span>
+        <textarea name="issues" id="f_issues" rows="2" maxlength="4000" placeholder="294-296, 300, Annual 1"></textarea>
       </label>
 
-      <label class="field">
-        <span>Series</span>
-        <input name="series" maxlength="200" placeholder="Saga">
-      </label>
-
-      <label class="field">
-        <span>Issue / volume</span>
-        <input name="issue" maxlength="40" placeholder="#1&ndash;6">
+      <label class="field checkbox span2">
+        <input type="checkbox" name="started">
+        <span>Mark as started, even with no issues ticked yet</span>
       </label>
 
       <label class="field">
         <span>Writer</span>
-        <input name="writer" maxlength="200" placeholder="Brian K. Vaughan">
+        <input name="writer" maxlength="200" placeholder="J. M. DeMatteis">
       </label>
 
       <label class="field">
         <span>Artist</span>
-        <input name="artist" maxlength="200" placeholder="Fiona Staples">
+        <input name="artist" maxlength="200" placeholder="Mike Zeck">
       </label>
 
       <label class="field">
         <span>Publisher</span>
-        <input name="publisher" maxlength="120" placeholder="Image Comics">
+        <input name="publisher" maxlength="120" placeholder="Marvel">
       </label>
 
       <label class="field">
         <span>Year</span>
-        <input name="year" type="number" min="1900" max="2200" step="1" placeholder="2012">
+        <input name="year" type="number" min="1900" max="2200" step="1" placeholder="1987">
       </label>
 
       <label class="field">
-        <span>Status</span>
-        <select name="status">
-          <option value="unread">Want to read</option>
-          <option value="reading">Reading</option>
-          <option value="read">Read</option>
-        </select>
+        <span>Service</span>
+        <select name="service" id="f_service"></select>
       </label>
 
       <label class="field">
@@ -166,36 +180,124 @@
       </label>
 
       <label class="field span2">
+        <span>Direct link <em>optional &mdash; overrides the service search</em></span>
+        <input name="url" type="url" maxlength="2000" placeholder="https://&hellip;">
+      </label>
+
+      <label class="field span2">
         <span>Cover image URL <em>optional</em></span>
         <input name="cover" type="url" maxlength="2000" placeholder="https://&hellip;/cover.jpg">
       </label>
 
       <label class="field span2">
         <span>Tags <em>comma separated</em></span>
-        <input name="tags" maxlength="300" placeholder="sci-fi, ongoing, borrowed">
+        <input name="tags" maxlength="300" placeholder="spider-man, 80s, essential">
       </label>
 
       <label class="field span2">
         <span>Notes</span>
-        <textarea name="notes" rows="3" maxlength="2000" placeholder="Where you left off, who lent it to you&hellip;"></textarea>
+        <textarea name="notes" rows="3" maxlength="2000" placeholder="Where you left off, why it&rsquo;s on the list&hellip;"></textarea>
       </label>
     </div>
 
-    <p class="form-error" id="formError" hidden></p>
-
     <menu class="dialog-actions">
       <button class="btn ghost" value="cancel" type="submit" formnovalidate>Cancel</button>
-      <button class="btn primary" value="save" id="saveComicBtn">Save comic</button>
+      <button class="btn primary" value="save" id="saveEntryBtn">Add to playlist</button>
     </menu>
   </form>
 </dialog>
 
-<!-- Prompt (new / rename list) -->
+<!-- Bulk add -->
+<dialog id="bulkDialog" class="dialog">
+  <form method="dialog" id="bulkForm" class="dialog-form">
+    <h2>Bulk add</h2>
+    <p class="dialog-hint">
+      One entry per line: <code>Series #issues | Optional arc title</code><br>
+      A line with no <code>#</code> becomes a single unnumbered book.
+    </p>
+    <label class="field">
+      <span class="sr-only">Reading order</span>
+      <textarea id="bulkText" rows="10" spellcheck="false" placeholder="The Amazing Spider-Man #294-296 | Kraven&rsquo;s Last Hunt
+Web of Spider-Man #31-32
+Watchmen"></textarea>
+    </label>
+    <p class="bulk-preview" id="bulkPreview" aria-live="polite">Nothing to add yet</p>
+    <menu class="dialog-actions">
+      <button class="btn ghost" value="cancel" type="submit" formnovalidate>Cancel</button>
+      <button class="btn primary" value="add" id="bulkAddBtn" disabled>Add to playlist</button>
+    </menu>
+  </form>
+</dialog>
+
+<!-- Services -->
+<dialog id="servicesDialog" class="dialog">
+  <form method="dialog" id="servicesForm" class="dialog-form">
+    <h2>Services</h2>
+    <p class="dialog-hint">
+      When an entry has no direct link, Longbox builds one from these templates and
+      replaces <code>{q}</code> with the series and issue.
+      <strong>The defaults are placeholders</strong> &mdash; run a search inside Marvel Unlimited or
+      DC Universe Infinite in your browser, copy the address, and swap the search term for <code>{q}</code>.
+      Templates must start with <code>http://</code> or <code>https://</code>.
+    </p>
+    <div id="servicesFields"></div>
+    <menu class="dialog-actions">
+      <button class="btn ghost" value="cancel" type="submit" formnovalidate>Cancel</button>
+      <button class="btn primary" value="save">Save services</button>
+    </menu>
+  </form>
+</dialog>
+
+<!-- Share -->
+<dialog id="shareDialog" class="dialog">
+  <form method="dialog" id="shareForm" class="dialog-form">
+    <h2>Share this playlist</h2>
+    <p class="dialog-hint">
+      The whole playlist is packed into the link itself &mdash; nothing is uploaded anywhere.
+      Anyone who opens it is offered a copy of their own.
+    </p>
+    <label class="field checkbox">
+      <input type="checkbox" id="shareProgress">
+      <span>Include which issues are ticked off</span>
+    </label>
+    <label class="field">
+      <span>Link</span>
+      <input id="shareUrl" readonly spellcheck="false">
+    </label>
+    <p class="dialog-hint" id="shareMeta"></p>
+    <p class="dialog-hint warn" id="shareWarn" hidden>
+      That is a long link. Some chat apps and mail clients cut long URLs &mdash; for a big
+      playlist, an exported JSON file travels better.
+    </p>
+    <menu class="dialog-actions">
+      <button class="btn ghost" value="close" type="submit" formnovalidate>Close</button>
+      <button class="btn primary" id="shareCopyBtn" type="button">Copy link</button>
+    </menu>
+  </form>
+</dialog>
+
+<!-- Incoming share -->
+<dialog id="incomingDialog" class="dialog">
+  <form method="dialog" class="dialog-form narrow">
+    <h2>Add this shared playlist?</h2>
+    <p class="confirm-text">
+      <strong id="incomingName"></strong><br>
+      <span id="incomingMeta"></span>
+    </p>
+    <p class="dialog-hint">You get your own copy. Editing it changes nothing for whoever sent it.</p>
+    <menu class="dialog-actions">
+      <button class="btn ghost" value="cancel">Not now</button>
+      <button class="btn primary" value="ok">Add a copy</button>
+    </menu>
+  </form>
+</dialog>
+
+<!-- Prompt (new / rename playlist) -->
 <dialog id="promptDialog" class="dialog">
   <form method="dialog" id="promptForm" class="dialog-form narrow">
-    <h2 id="promptTitle">New list</h2>
+    <h2 id="promptTitle">New playlist</h2>
     <label class="field">
-      <span id="promptLabel">List name</span>
+      <span id="promptLabel">Playlist name</span>
       <input name="value" id="promptInput" required maxlength="80" autocomplete="off">
     </label>
     <menu class="dialog-actions">

@@ -1,26 +1,94 @@
-# Longbox — Comic Reading List
+# Longbox — Comic Reading Playlists
 
-A small, dependency-free web app for tracking comic book reading lists. Built as a
-static site, so GitHub Pages serves it as-is: no build step, no backend, no accounts.
+A small, dependency-free web app for building **ordered reading playlists** of comic runs and
+arcs, and ticking off issues as you read them on Marvel Unlimited, DC Universe Infinite or
+anywhere else. Built as a static site, so GitHub Pages serves it as-is: no build step, no
+backend, no accounts, no analytics.
+
+An entry is a *run or arc*, not a single issue: `The Amazing Spider-Man #294-296 · Kraven's
+Last Hunt` is one row that expands into three tickable issues.
 
 ## Features
 
-- **Multiple reading lists** — one for the current pull, one for the trade backlog, one for the re-read.
-- **Rich entries** — title, series, issue/volume, writer, artist, publisher, year, cover image, tags, notes.
-- **Three-state progress** — *Want to read → Reading → Read*, with per-list stats and a progress bar.
-- **Search and filter** across every field, plus sorting by title, series & issue, year, rating or date added.
-- **Custom order** — drag rows to reorder a list (list view, with sort set to *Custom order*).
-- **Grid or list view**, light and dark themes.
-- **JSON import/export** so your data is portable and backed up.
-- **Keyboard shortcuts** — `/` focuses search, `n` adds a comic.
+- **Playlists in reading order** — drag to reorder; list view numbers the rows 1, 2, 3…
+- **Issue-level progress** — each entry opens a tray of issue pills. Tick them one by one, or
+  use *Mark all* / *Clear*. Every count in the app is **issues read, not entries read**.
+- **Issue ranges** — type `294-296, 300, Annual 1` and get five issues. Prefixes (`Annual 1-3`),
+  en dashes, `1 to 3` and zero padding (`001-003`) all work; anything that isn't a plain
+  numeric range (`1.MU`) is kept verbatim. Expansion is capped at 500 issues per entry.
+- **Bulk add** — paste a whole reading order, one entry per line:
+
+  ```
+  The Amazing Spider-Man #294-296 | Kraven's Last Hunt
+  Web of Spider-Man #31-32
+  Watchmen
+  ```
+
+  `Series #issues | Optional arc title`. A line with no `#` becomes a single unnumbered book.
+  A live preview counts the entries and issues before you commit.
+- **Derived status** — every issue ticked is *Finished*, some ticked (or explicitly started) is
+  *In progress*, otherwise *Not started*. There is no status field to keep in sync by hand.
+- **Service links** — each playlist has a default service and each entry can override it. Paste a
+  direct URL for an entry, or let Longbox build a search link from an editable template.
+- **Share links** — pack a whole playlist into a URL and send it. Opening one offers a copy.
+- **Rich metadata** — writer, artist, publisher, year, cover image, tags, notes, 5-star rating.
+- **Search, filter, sort**, grid or list view, light and dark themes.
+- **JSON import/export**, including old v1 backups.
+- **Keyboard shortcuts** — `/` focuses search, `n` adds an entry, `b` opens bulk add.
+
+## Service search templates
+
+Longbox links out to whatever service you read on. When an entry has no direct link, it builds
+one from that service's template, replacing `{q}` with the series and issue.
+
+**The shipped defaults are placeholders**, not real Marvel Unlimited or DC Universe Infinite
+search URLs — both services are login-walled, so their in-app search formats could not be
+verified. The defaults fall back to a site-scoped web search, which works but is not the
+in-app search you probably want.
+
+Fixing that takes ten seconds and no code change: run a search inside the service in your own
+browser, copy the address bar, and paste it into **Services**, swapping the search term for
+`{q}`. Templates must start with `http://` or `https://`.
+
+There is no comics metadata lookup, because there is no keyless public API for it. Marvel's
+official API requires a server-side key hash, which a static page cannot do. Entry is manual by
+design — which is exactly why bulk add and share links exist.
+
+## Share links
+
+**Share** packs the playlist into the link's own hash: compact JSON → gzip (via
+`CompressionStream`, with a raw base64 fallback) → base64url. No server is involved and nothing
+is uploaded. A checkbox controls whether your read progress travels with it.
+
+Opening such a link offers to add a **copy** — the recipient's edits never touch yours. Incoming
+payloads are treated as untrusted: every field is sanitised, links are restricted to `http(s)`,
+and the entry count is capped.
+
+Long playlists make long URLs, and some chat apps and mail clients truncate them. The dialog
+shows the character count and warns past ~8,000; for very large playlists, an exported JSON file
+travels better.
 
 ## Data and privacy
 
-Everything lives in your browser's `localStorage` on the device you are using — nothing is
-uploaded anywhere. That also means the data does not follow you between browsers or devices,
-and clearing site data erases it. Use **Export** to save a JSON backup and **Import** to load
-it elsewhere; importing adds the file's lists alongside your existing ones rather than
-replacing them.
+Everything lives in your browser's `localStorage` under the key `longbox.playlists.v2` — nothing
+is uploaded anywhere. The key is deliberately specific: all GitHub Pages project sites on one
+account share a single origin, so a generic name could collide with another app's storage.
+
+Data does not follow you between browsers or devices, and clearing site data erases it. Use
+**Export** for a JSON backup, **Import** to load one elsewhere (imports are added alongside your
+existing playlists, never replacing them), or a share link to move a single playlist.
+
+### Upgrading from v1
+
+A v1 list (`longbox.state.v1`) is migrated automatically the first time you open v2:
+
+- `series` comes from the old series field, falling back to the old title.
+- The old title becomes the **arc title**, but only when a series was filled in.
+- The old issue string is expanded into individual issues.
+- Old *Read* ticks every issue; old *Reading* marks the entry started.
+
+The v1 key is **left in place untouched** as a backup, so the old data survives even if
+something about the migration surprises you.
 
 ## Publishing on GitHub Pages
 
@@ -34,19 +102,22 @@ The site is then available at `https://<username>.github.io/Comic-Reading-List/`
 
 ## Running locally
 
-No tooling required — open `index.html` in a browser, or serve the folder:
+No tooling required — serve the folder:
 
 ```sh
 python3 -m http.server 8000
 # then visit http://localhost:8000
 ```
 
+Serve it rather than opening `index.html` directly: `file://` pages get an opaque origin, so
+`localStorage` and share links behave inconsistently.
+
 ## Project layout
 
 ```
 index.html          markup and dialogs
 assets/styles.css   design tokens, layout, light/dark themes
-assets/app.js       state, storage, rendering, import/export
+assets/app.js       state, migration, parsing, share codec, rendering
 assets/favicon.svg  icon
 .nojekyll           serve files as-is on Pages
 ```
