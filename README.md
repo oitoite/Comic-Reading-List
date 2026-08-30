@@ -30,7 +30,7 @@ Last Hunt` is one row that expands into three tickable issues.
   *In progress*, otherwise *Not started*. There is no status field to keep in sync by hand.
 - **Service links** — each playlist has a default service and each entry can override it. Links
   resolve most-specific-first: an issue's own pasted URL, then the entry's, then a search link
-  built from an editable template.
+  built from an editable template. Marvel Unlimited points at Marvel's own comics search.
 - **Per-issue links** — services that address issues by numeric id (Marvel's
   `/comics/issue/25182/...`) cannot be reached by any search template, so the issue tray has a
   **Links** button: one row per issue, paste and go. On a phone those permalinks hand off to the
@@ -43,18 +43,32 @@ Last Hunt` is one row that expands into three tickable issues.
 
 ## Service search templates
 
-Longbox links out to whatever service you read on. When an entry has no direct link, it builds
-one from that service's template, replacing `{q}` with the series and issue.
+Longbox links out to whatever service you read on. When neither the issue nor the entry has a
+direct link, it builds one from that service's template. Three placeholders are available:
 
-**The shipped defaults are placeholders**, not real Marvel Unlimited or DC Universe Infinite
-search URLs — both services are login-walled, so their in-app search formats could not be
-verified. The defaults fall back to a site-scoped web search, which works but is not the
-in-app search you probably want.
+| Placeholder  | Becomes                              |
+| ------------ | ------------------------------------ |
+| `{q}`        | series and issue — `Fantastic Four #570` |
+| `{series}`   | `Fantastic Four`                     |
+| `{issue}`    | `570`                                |
 
-Fixing that takes ten seconds and no code change: run a search inside the service in your own
-browser, copy the address bar **of the results page** (before clicking through to an issue), and
-paste it into **Services**, swapping the search term for `{q}`. Templates must start with
-`http://` or `https://`.
+`{series}` and `{issue}` exist because some searches return nothing when an issue number is in
+the query — use `{series}` alone if that happens.
+
+Marvel Unlimited defaults to Marvel's own comics search:
+
+```
+https://www.marvel.com/search?content_type=comics&offset=0&query={q}
+```
+
+**The DC Universe Infinite default is still a placeholder** — a site-scoped web search, which
+works but is not the in-app search. Replacing it takes ten seconds and no code change: run a
+search on the service, copy the address bar **of the results page** (before clicking through to
+an issue), and paste it into **Services** with the search term swapped for `{q}`. Templates must
+start with `http://` or `https://`.
+
+If you upgrade from a build that shipped a different default, an untouched template moves on to
+the new default automatically; anything you edited by hand is left exactly as it is.
 
 ### Why a template can't always do the job
 

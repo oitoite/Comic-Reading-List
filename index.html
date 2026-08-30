@@ -253,10 +253,12 @@ Watchmen"></textarea>
   <form method="dialog" id="servicesForm" class="dialog-form">
     <h2>Services</h2>
     <p class="dialog-hint">
-      When an entry has no direct link, Longbox builds one from these templates and
-      replaces <code>{q}</code> with the series and issue.
-      <strong>The defaults are placeholders</strong> &mdash; run a search inside Marvel Unlimited or
-      DC Universe Infinite in your browser, copy the address, and swap the search term for <code>{q}</code>.
+      When neither the issue nor the entry has a direct link, Longbox builds one from these
+      templates. <code>{q}</code> becomes the series and issue together (<em>Fantastic Four #570</em>);
+      <code>{series}</code> and <code>{issue}</code> are available separately, for a search that
+      returns nothing when an issue number is in the query.
+      <strong>The DC template is still a placeholder</strong> &mdash; run a search on the service,
+      copy the address bar of the <em>results</em> page, and swap the search term for <code>{q}</code>.
       Templates must start with <code>http://</code> or <code>https://</code>.
     </p>
     <div id="servicesFields"></div>

@@ -17,14 +17,21 @@
   var STATUSES = { unread: 'Not started', reading: 'In progress', finished: 'Finished' };
   var SORTS = ['order', 'added', 'series', 'title', 'progress', 'year', 'rating'];
 
-  /* Search templates are deliberately editable: Marvel's and DC's real in-app search
-     URLs could not be verified from here, so the defaults are honest placeholders
-     (a site-scoped web search) that work today and are meant to be replaced. */
+  /* Search templates stay editable. The Marvel one is the real marvel.com comics
+     search; DC's could not be verified from here, so it is still a site-scoped web
+     search standing in until someone pastes the real one. */
   var DEFAULT_SERVICES = [
-    { id: 'mu', name: 'Marvel Unlimited', template: 'https://duckduckgo.com/?q=site%3Amarvel.com+{q}' },
+    { id: 'mu', name: 'Marvel Unlimited', template: 'https://www.marvel.com/search?content_type=comics&offset=0&query={q}' },
     { id: 'dcui', name: 'DC Universe Infinite', template: 'https://duckduckgo.com/?q=site%3Adcuniverseinfinite.com+{q}' },
     { id: 'other', name: 'Other', template: 'https://duckduckgo.com/?q={q}' }
   ];
+
+  /* Defaults that shipped in an earlier build. A stored template still matching one of
+     these was never edited by hand, so it is safe to move it on to the current default;
+     anything else the user typed is left exactly as it is. */
+  var SUPERSEDED_TEMPLATES = {
+    mu: ['https://duckduckgo.com/?q=site%3Amarvel.com+{q}']
+  };
 
   /* ---------------- helpers ---------------- */
 
@@ -202,10 +209,13 @@
     }
     return DEFAULT_SERVICES.map(function (d) {
       var found = byId[d.id];
+      var template = (found && found.template) || d.template;
+      var old = SUPERSEDED_TEMPLATES[d.id] || [];
+      if (old.indexOf(template) !== -1) template = d.template;
       return {
         id: d.id,
         name: (found && found.name) || d.name,
-        template: (found && found.template) || d.template
+        template: template
       };
     });
   }
@@ -432,8 +442,11 @@
     var tpl = safeUrl(svc && svc.template, 500);
     if (!tpl) return '';
     var q = [entry.series, issueLabel ? '#' + issueLabel : ''].filter(Boolean).join(' ');
-    if (tpl.indexOf('{q}') === -1) return tpl;
-    return tpl.replace(/\{q\}/g, encodeURIComponent(q));
+    if (!/\{(q|series|issue)\}/.test(tpl)) return tpl;
+    return tpl
+      .replace(/\{q\}/g, encodeURIComponent(q))
+      .replace(/\{series\}/g, encodeURIComponent(entry.series))
+      .replace(/\{issue\}/g, encodeURIComponent(issueLabel || ''));
   }
 
   /* Pasted links win over the generated search, most specific first: an issue's own
