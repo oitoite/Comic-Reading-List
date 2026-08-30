@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Longbox &middot; Comic Reading List</title>
+<meta name="description" content="Track your comic book reading lists — series, issues, trades and graphic novels.">
+<meta name="color-scheme" content="dark light">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/styles.css">
+<script>
+/* Apply the saved theme before first paint so the page never flashes the wrong one. */
+(function () {
+  try {
+    var s = JSON.parse(localStorage.getItem('longbox.state.v1'));
+    if (s && s.prefs && s.prefs.theme === 'light') document.documentElement.setAttribute('data-theme', 'light');
+  } catch (e) { /* default theme is already on <html> */ }
+})();
+</script>
+</head>
+<body>
+
+<header class="topbar">
+  <button class="icon-btn only-mobile" id="menuToggle" aria-label="Toggle lists panel">&#9776;</button>
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true">&#9646;&#9646;&#9646;</span>
+    <h1>Longbox</h1>
+  </div>
+  <div class="topbar-actions">
+    <button class="btn ghost" id="importBtn" title="Import a JSON backup">Import</button>
+    <button class="btn ghost" id="exportBtn" title="Download a JSON backup">Export</button>
+    <button class="icon-btn" id="themeBtn" aria-label="Toggle colour theme" title="Toggle theme">&#9789;</button>
+    <input type="file" id="importFile" accept="application/json,.json" hidden>
+  </div>
+</header>
+
+<div class="layout">
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-head">
+      <h2>Reading lists</h2>
+      <button class="btn small" id="newListBtn">+ New</button>
+    </div>
+    <ul class="list-nav" id="listNav"></ul>
+    <div class="sidebar-foot">
+      <p class="hint">Everything is stored in this browser. Export a backup before clearing site data.</p>
+    </div>
+  </aside>
+
+  <main class="content">
+
+    <section class="list-header">
+      <div class="list-title-row">
+        <h2 id="listTitle">&nbsp;</h2>
+        <div class="list-title-actions">
+          <button class="btn ghost small" id="renameListBtn">Rename</button>
+          <button class="btn ghost small danger" id="deleteListBtn">Delete list</button>
+        </div>
+      </div>
+      <div class="stats" id="stats"></div>
+      <div class="progress" role="progressbar" aria-label="Reading progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progressBar">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+    </section>
+
+    <section class="toolbar">
+      <div class="search-wrap">
+        <input type="search" id="search" placeholder="Search title, series, creator, tag&hellip;" aria-label="Search comics">
+      </div>
+      <div class="filters" id="statusFilter" role="group" aria-label="Filter by status">
+        <button class="chip is-active" data-status="all">All</button>
+        <button class="chip" data-status="unread">Want to read</button>
+        <button class="chip" data-status="reading">Reading</button>
+        <button class="chip" data-status="read">Read</button>
+      </div>
+      <div class="toolbar-right">
+        <label class="sr-only" for="sort">Sort by</label>
+        <select id="sort">
+          <option value="manual">Custom order</option>
+          <option value="added">Recently added</option>
+          <option value="title">Title A&ndash;Z</option>
+          <option value="series">Series &amp; issue</option>
+          <option value="year">Year</option>
+          <option value="rating">Rating</option>
+        </select>
+        <div class="view-toggle" role="group" aria-label="View mode">
+          <button class="icon-btn is-active" id="gridViewBtn" title="Grid view" aria-label="Grid view">&#9638;</button>
+          <button class="icon-btn" id="listViewBtn" title="List view" aria-label="List view">&#9776;</button>
+        </div>
+        <button class="btn primary" id="addComicBtn">+ Add comic</button>
+      </div>
+    </section>
+
+    <section id="comics" class="comics grid-view" aria-live="polite"></section>
+
+    <div class="empty" id="empty" hidden>
+      <p class="empty-art" aria-hidden="true">&#9634;</p>
+      <h3 id="emptyTitle">Nothing here yet</h3>
+      <p id="emptyText">Add your first comic to start building this list.</p>
+      <button class="btn primary" id="emptyAddBtn">+ Add comic</button>
+    </div>
+
+  </main>
+</div>
+
+<!-- Add / edit comic -->
+<dialog id="comicDialog" class="dialog">
+  <form method="dialog" id="comicForm" class="dialog-form">
+    <h2 id="dialogTitle">Add comic</h2>
+
+    <div class="field-grid">
+      <label class="field span2">
+        <span>Title <em>required</em></span>
+        <input name="title" id="f_title" required maxlength="200" placeholder="Saga, Vol. 1">
+      </label>
+
+      <label class="field">
+        <span>Series</span>
+        <input name="series" maxlength="200" placeholder="Saga">
+      </label>
+
+      <label class="field">
+        <span>Issue / volume</span>
+        <input name="issue" maxlength="40" placeholder="#1&ndash;6">
+      </label>
+
+      <label class="field">
+        <span>Writer</span>
+        <input name="writer" maxlength="200" placeholder="Brian K. Vaughan">
+      </label>
+
+      <label class="field">
+        <span>Artist</span>
+        <input name="artist" maxlength="200" placeholder="Fiona Staples">
+      </label>
+
+      <label class="field">
+        <span>Publisher</span>
+        <input name="publisher" maxlength="120" placeholder="Image Comics">
+      </label>
+
+      <label class="field">
+        <span>Year</span>
+        <input name="year" type="number" min="1900" max="2200" step="1" placeholder="2012">
+      </label>
+
+      <label class="field">
+        <span>Status</span>
+        <select name="status">
+          <option value="unread">Want to read</option>
+          <option value="reading">Reading</option>
+          <option value="read">Read</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span>Rating</span>
+        <select name="rating">
+          <option value="0">Not rated</option>
+          <option value="1">&#9733;</option>
+          <option value="2">&#9733;&#9733;</option>
+          <option value="3">&#9733;&#9733;&#9733;</option>
+          <option value="4">&#9733;&#9733;&#9733;&#9733;</option>
+          <option value="5">&#9733;&#9733;&#9733;&#9733;&#9733;</option>
+        </select>
+      </label>
+
+      <label class="field span2">
+        <span>Cover image URL <em>optional</em></span>
+        <input name="cover" type="url" maxlength="2000" placeholder="https://&hellip;/cover.jpg">
+      </label>
+
+      <label class="field span2">
+        <span>Tags <em>comma separated</em></span>
+        <input name="tags" maxlength="300" placeholder="sci-fi, ongoing, borrowed">
+      </label>
+
+      <label class="field span2">
+        <span>Notes</span>
+        <textarea name="notes" rows="3" maxlength="2000" placeholder="Where you left off, who lent it to you&hellip;"></textarea>
+      </label>
+    </div>
+
+    <p class="form-error" id="formError" hidden></p>
+
+    <menu class="dialog-actions">
+      <button class="btn ghost" value="cancel" type="submit" formnovalidate>Cancel</button>
+      <button class="btn primary" value="save" id="saveComicBtn">Save comic</button>
+    </menu>
+  </form>
+</dialog>
+
+<!-- Prompt (new / rename list) -->
+<dialog id="promptDialog" class="dialog">
+  <form method="dialog" id="promptForm" class="dialog-form narrow">
+    <h2 id="promptTitle">New list</h2>
+    <label class="field">
+      <span id="promptLabel">List name</span>
+      <input name="value" id="promptInput" required maxlength="80" autocomplete="off">
+    </label>
+    <menu class="dialog-actions">
+      <button class="btn ghost" value="cancel" type="submit" formnovalidate>Cancel</button>
+      <button class="btn primary" value="ok">Save</button>
+    </menu>
+  </form>
+</dialog>
+
+<!-- Confirm -->
+<dialog id="confirmDialog" class="dialog">
+  <form method="dialog" class="dialog-form narrow">
+    <h2 id="confirmTitle">Are you sure?</h2>
+    <p id="confirmText" class="confirm-text"></p>
+    <menu class="dialog-actions">
+      <button class="btn ghost" value="cancel">Cancel</button>
+      <button class="btn danger" value="ok" id="confirmOk">Delete</button>
+    </menu>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="assets/app.js"></script>
+</body>
+</html>
