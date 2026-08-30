@@ -16,9 +16,9 @@ Last Hunt` is one row that expands into three tickable issues.
 - **Issue ranges** — type `294-296, 300, Annual 1` and get five issues. Prefixes (`Annual 1-3`),
   en dashes, `1 to 3` and zero padding (`001-003`) all work; anything that isn't a plain
   numeric range (`1.MU`) is kept verbatim. Expansion is capped at 500 issues per entry.
-- **Find on Marvel** — search Marvel's catalogue and let it fill everything in: issue
-  list, per-issue permalinks, writer, artist, year and cover. Needs a free public API key
-  (see below). Trim the range before adding if you only want part of a run.
+- **Find on Marvel** — search Marvel's catalogue and let it fill everything in: the issue
+  list, each issue's permalink and the year, with no account or API key. Trim the range
+  before adding if you only want part of a run.
 - **Bulk add** — paste a whole reading order, one entry per line:
 
   ```
@@ -86,29 +86,36 @@ other field.
 
 ## Marvel lookup
 
-**Services → Marvel API public key** turns on the *Find on Marvel* button. To get one:
+**Find on Marvel** searches a free third-party index of Marvel comics
+(`marvel.emreparker.com`) and builds a whole entry from it: the issue list in reading
+order, each issue's own `marvel.com` permalink, the year, and the publisher. No account,
+no API key, no backend — the service sends CORS headers, so the page calls it directly.
 
-1. Register at `developer.marvel.com` and copy your **public** key.
-2. Add your site to that account's **authorized referrers** — for this deployment,
-   `oitoite.github.io`. Marvel authorises browser calls by referrer, which is what lets a
-   static page talk to the API with no secret and no backend.
-3. Paste the public key into **Services**.
+Marvel's own developer API is gone, which is why this points at a third-party index
+instead. That also means it is someone else's service: if it moves or disappears, set
+**Services → Comic metadata API** to a replacement rather than waiting on a code change.
 
-Only the public key goes in. **Never paste the private key** — this is a static page, so
-anything it stores is readable by anyone with the browser, and every project site on a
-`github.io` account shares one origin.
+What it does *not* provide: cover images and creator credits. That data is not in this
+index, so those fields are left blank for you to fill in if you care about them.
 
-Because authorisation is by referrer, the lookup only works on the deployed site, not from
-a local `file://` or `localhost` copy unless you authorise those too.
+### Quirks worth knowing
 
-A search returns matching series; picking one fetches its issues (up to 500, five pages of
-100, so a long run does not burn through the daily quota) and builds an entry with the
-issue list, each issue's Marvel permalink, writer, artist, year and cover. Marvel's run
-years are stripped from the series name — they are already their own field, and leaving
-them in would end up in every generated search query.
+The API is indexed by issue, not by series, so a search matches issue *and* series names
+and the results are folded back into the series they came from. It caps at 200 issues per
+search, and one long-running volume can fill all 200 — so if the volume you want is
+missing, add a year or an issue number (`fantastic four 1998`) to narrow it.
 
-If a call fails, Marvel's own wording is shown rather than a status code, because it names
-the actual problem: a bad key, an unauthorised referrer, or the daily limit.
+Its search backend returns a server error on `(`, `)`, `*`, `:`, `%`, `?` and apostrophes,
+so the query is cleaned before it is sent: those become spaces rather than being deleted,
+because `Kraven's Last Hunt` has to stay four tokens to match anything.
+
+Issues come back newest-first with numbers as strings that may be decimal (`605.1`,
+`0.5`), so they are sorted numerically into reading order. Some series give every issue the
+same number — five one-shots all called `#1` — and those labels are disambiguated
+(`1`, `1 (2)`, `1 (3)`) so the range box and the per-issue links do not collide.
+
+There is an **Only issues available on Marvel Unlimited** filter, since that is the point
+of the app; the summary line tells you how many of a run are on it.
 
 ## Share links
 

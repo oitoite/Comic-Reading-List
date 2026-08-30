@@ -237,8 +237,8 @@ Watchmen"></textarea>
     <h2>Find on Marvel</h2>
     <div class="marvel-search">
       <label class="field">
-        <span class="sr-only">Series title</span>
-        <input id="marvelQuery" maxlength="100" autocomplete="off" placeholder="Series title &mdash; e.g. Fantastic Four">
+        <span class="sr-only">Series, arc or issue title</span>
+        <input id="marvelQuery" maxlength="100" autocomplete="off" placeholder="e.g. Fantastic Four 1998">
       </label>
       <button class="btn" id="marvelSearchBtn" type="button">Search</button>
     </div>
@@ -250,6 +250,10 @@ Watchmen"></textarea>
         <strong id="marvelChosenTitle"></strong>
         <span class="dialog-hint" id="marvelChosenMeta"></span>
       </div>
+      <label class="field checkbox">
+        <input type="checkbox" id="marvelUnlimited">
+        <span>Only issues available on Marvel Unlimited</span>
+      </label>
       <label class="field">
         <span>Issues to add <em>trim the range if you only want part of the run</em></span>
         <textarea id="marvelIssues" rows="2" spellcheck="false"></textarea>
@@ -298,15 +302,14 @@ Watchmen"></textarea>
     <div id="servicesFields"></div>
 
     <label class="field marvel-key">
-      <span>Marvel API public key <em>optional &mdash; turns on &ldquo;Find on Marvel&rdquo;</em></span>
-      <input id="marvelKeyInput" maxlength="64" autocomplete="off" spellcheck="false"
-             placeholder="your public key from developer.marvel.com">
+      <span>Comic metadata API <em>optional &mdash; powers &ldquo;Find on Marvel&rdquo;</em></span>
+      <input id="metaApiInput" maxlength="300" autocomplete="off" spellcheck="false"
+             placeholder="https://marvel.emreparker.com">
     </label>
     <p class="dialog-hint">
-      Get a free key at <code>developer.marvel.com</code>, then add this site to your
-      <strong>authorized referrers</strong> so Marvel accepts calls from the browser.
-      Only the <strong>public</strong> key belongs here &mdash; never the private one: this page is
-      static, so anything it stores is readable by anyone using this browser.
+      Leave blank to use <code>marvel.emreparker.com</code>, a free third-party index of Marvel
+      comics. No key or account is needed. It is someone else&rsquo;s service, so if it moves or
+      goes away, point this at a replacement rather than waiting on a code change.
     </p>
     <menu class="dialog-actions">
       <button class="btn ghost" value="cancel" type="submit" formnovalidate>Cancel</button>

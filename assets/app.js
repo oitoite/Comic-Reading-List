@@ -193,7 +193,7 @@
       version: SCHEMA_VERSION,
       lists: [{ id: uid(), name: 'My reading list', service: 'mu', createdAt: Date.now(), entries: [] }],
       activeListId: null,
-      prefs: { theme: 'dark', sort: 'order', view: 'list', marvelKey: '', services: DEFAULT_SERVICES.map(clone) }
+      prefs: { theme: 'dark', sort: 'order', view: 'list', metaApi: '', services: DEFAULT_SERVICES.map(clone) }
     };
   }
 
@@ -325,7 +325,7 @@
         theme: prefs.theme === 'light' ? 'light' : 'dark',
         sort: 'order',
         view: prefs.view === 'grid' ? 'grid' : 'list',
-        marvelKey: '',
+        metaApi: '',
         services: DEFAULT_SERVICES.map(clone)
       }
     };
@@ -346,16 +346,10 @@
         theme: prefs.theme === 'light' ? 'light' : 'dark',
         sort: sort,
         view: prefs.view === 'grid' ? 'grid' : 'list',
-        marvelKey: marvelKeyOf(prefs.marvelKey),
+        metaApi: safeUrl(prefs.metaApi, 300),
         services: sanitizeServices(prefs.services)
       }
     };
-  }
-
-  /* Marvel's public keys are hex; refuse anything else so a stray paste cannot
-     end up in a query string. */
-  function marvelKeyOf(v) {
-    return str(v, 64).replace(/[^A-Za-z0-9]/g, '');
   }
 
   function load() {
@@ -475,59 +469,163 @@
     return entry.issues[entry.issues.length - 1];
   }
 
-  /* ---------------- marvel api ---------------- */
+  /* ---------------- comic metadata api ---------------- */
 
-  /* Client-side calls carry only the public key; Marvel authorises them by referrer,
-     which is why no secret is needed (and none should ever be pasted in here). */
-  var MARVEL_BASE = 'https://gateway.marvel.com/v1/public/';
-  var MARVEL_PAGE = 100;
-  var MARVEL_MAX_PAGES = 5;
+  /* Marvel's own API is gone. This is a free third-party index of Marvel comics —
+     no key, no auth, and it sends CORS headers, so a static page can call it. */
+  var META_API_DEFAULT = 'https://marvel.emreparker.com';
+  var META_SERIES_PAGE = 500;      /* the /series/{id}/issues maximum */
+  var META_SEARCH_LIMIT = 200;     /* the /search/issues maximum */
+  var META_MAX_PAGES = 5;
 
-  function marvelFetch(path, params) {
-    var key = state.prefs.marvelKey;
-    if (!key) return Promise.reject(new Error('Add your Marvel public key under Services first.'));
+  function metaBase() {
+    return (safeUrl(state.prefs.metaApi, 300) || META_API_DEFAULT).replace(/\/+$/, '');
+  }
 
+  /* The search backend 500s on ( ) * : % ? and apostrophes, and treats the query as
+     AND-ed tokens over the issue and series names. Punctuation becomes a space rather
+     than being deleted: "Kraven's Last Hunt" has to stay four tokens to match. */
+  function metaQuery(text) {
+    return String(text == null ? '' : text)
+      .replace(/[^\w\s&"À-ɏ-]/g, ' ')
+      .replace(/_/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 100);
+  }
+
+  function metaError(body, status) {
+    var detail = body && body.detail;
+    if (typeof detail === 'string' && detail) return detail;
+    if (Array.isArray(detail)) {
+      var msgs = detail.map(function (d) { return d && d.msg; }).filter(Boolean);
+      if (msgs.length) return msgs.join('; ');
+    }
+    if (status === 429) return 'Too many requests — the API allows 60 a minute. Wait a moment and try again.';
+    if (status >= 500) return 'The metadata API had an error on that query. Try different wording.';
+    return 'The metadata API returned HTTP ' + status + '.';
+  }
+
+  function metaFetch(path, params) {
     var qs = [];
     Object.keys(params || {}).forEach(function (k) {
       if (params[k] === '' || params[k] == null) return;
       qs.push(encodeURIComponent(k) + '=' + encodeURIComponent(params[k]));
     });
-    qs.push('apikey=' + encodeURIComponent(key));
+    var url = metaBase() + path + (qs.length ? '?' + qs.join('&') : '');
 
-    return fetch(MARVEL_BASE + path + '?' + qs.join('&'), { credentials: 'omit' })
-      .then(function (res) {
-        return res.text().then(function (text) {
-          var body = null;
-          try { body = JSON.parse(text); } catch (e) { /* Marvel can return html on some errors */ }
-          if (!res.ok) {
-            /* Surface Marvel's own wording — it names the real problem (bad key,
-               unauthorised referrer, missing hash) far better than a status code. */
-            throw new Error((body && (body.message || body.status)) || ('Marvel returned HTTP ' + res.status));
-          }
-          if (!body || !body.data) throw new Error('Marvel sent a response Longbox could not read.');
-          return body.data;
-        });
+    return fetch(url, { credentials: 'omit' }).then(function (res) {
+      return res.text().then(function (text) {
+        var body = null;
+        try { body = JSON.parse(text); } catch (e) { /* an html error page, say */ }
+        if (!res.ok) throw new Error(metaError(body, res.status));
+        if (!body || typeof body !== 'object') throw new Error('The metadata API sent something unreadable.');
+        return body;
       });
+    });
   }
 
-  /* Marvel serves images and links over http; the site is https, so upgrade them
-     or the browser blocks them as mixed content. */
-  function httpsUrl(v) {
-    return safeUrl(String(v == null ? '' : v).replace(/^http:\/\//i, 'https://'));
+  /* There is no series-search endpoint, so search issues and fold them into the
+     series they belong to — the search matches series names too, so this works. */
+  function metaSearchSeries(query) {
+    var q = metaQuery(query);
+    if (q.length < 2) return Promise.reject(new Error('Type at least two letters.'));
+
+    return metaFetch('/v1/search/issues', { q: q, limit: META_SEARCH_LIMIT }).then(function (body) {
+      var items = Array.isArray(body.items) ? body.items : [];
+      var order = [], byId = {};
+      items.forEach(function (it) {
+        if (!it || it.seriesId == null) return;
+        var id = String(it.seriesId);
+        if (!byId[id]) {
+          byId[id] = { id: it.seriesId, title: str(it.seriesName, 200), name: seriesName(it.seriesName), hits: 0 };
+          order.push(id);
+        }
+        byId[id].hits++;
+      });
+      return {
+        series: order.map(function (id) { return byId[id]; }),
+        capped: items.length >= META_SEARCH_LIMIT
+      };
+    });
   }
 
-  function marvelImage(thumb, variant) {
-    if (!thumb || !thumb.path) return '';
-    if (/image_not_available/i.test(thumb.path)) return '';
-    return httpsUrl(thumb.path + '/' + (variant || 'portrait_uncanny') + '.' + (thumb.extension || 'jpg'));
-  }
-
-  function marvelDetailUrl(item) {
-    var urls = (item && item.urls) || [];
-    for (var i = 0; i < urls.length; i++) {
-      if (urls[i] && urls[i].type === 'detail') return httpsUrl(urls[i].url);
+  function metaSeriesIssues(seriesId, onProgress) {
+    var all = [];
+    function page(offset, pageNo) {
+      return metaFetch('/v1/series/' + encodeURIComponent(seriesId) + '/issues', {
+        limit: META_SERIES_PAGE, offset: offset
+      }).then(function (body) {
+        var items = (Array.isArray(body.items) ? body.items : []).filter(Boolean);
+        all = all.concat(items);
+        var total = typeof body.total === 'number' ? body.total : all.length;
+        if (onProgress) onProgress(all.length, total);
+        var more = body.has_next && items.length && pageNo < META_MAX_PAGES && all.length < MAX_ISSUES;
+        return more ? page(offset + items.length, pageNo + 1) : { items: all, total: total, name: str(body.series_name, 200) };
+      });
     }
-    return '';
+    return page(0, 1);
+  }
+
+  /* The API returns newest first, and issue numbers are strings that may be decimal
+     ("605.1", "0.5"), so sort on the parsed number and keep unparseable ones last. */
+  function sortIssuesAscending(items) {
+    return items.slice().sort(function (a, b) {
+      var x = parseFloat(a.issueNumber), y = parseFloat(b.issueNumber);
+      var xn = isNaN(x), yn = isNaN(y);
+      if (xn && yn) return 0;
+      if (xn) return 1;
+      if (yn) return -1;
+      return x - y;
+    });
+  }
+
+  /* Some series give every issue the same number — five one-shots all called #1.
+     Labels have to stay distinct or the range box and the per-issue links collide. */
+  function uniqueLabels(labels) {
+    var seen = {};
+    return labels.map(function (label) {
+      var base = label || 'Issue';
+      seen[base] = (seen[base] || 0) + 1;
+      return seen[base] === 1 ? base : str(base + ' (' + seen[base] + ')', 40);
+    });
+  }
+
+  function yearFromSeriesTitle(title) {
+    var m = String(title == null ? '' : title).match(/\((\d{4})/);
+    return m ? numOrEmpty(m[1]) : '';
+  }
+
+  function entryFromMeta(series, items, onlyUnlimited) {
+    var chosen = sortIssuesAscending(items).filter(function (it) {
+      return onlyUnlimited ? !!it.unlimitedDate : true;
+    }).slice(0, MAX_ISSUES);
+
+    var labels = uniqueLabels(chosen.map(function (it) {
+      return str(String(it.issueNumber == null ? '' : it.issueNumber), 40);
+    }));
+
+    var year = yearFromSeriesTitle(series.title);
+    if (!year) {
+      chosen.forEach(function (it) {
+        var y = numOrEmpty(it.yearPage);
+        if (y && (!year || y < year)) year = y;
+      });
+    }
+
+    return {
+      series: series.name || seriesName(series.title),
+      title: '',
+      issues: chosen.map(function (it, i) {
+        return { label: labels[i], done: false, url: safeUrl(it.detailUrl) };
+      }),
+      writer: '', artist: '',
+      publisher: 'Marvel',
+      year: year,
+      service: 'mu',
+      cover: '',
+      started: false, rating: 0, tags: [], notes: '', url: ''
+    };
   }
 
   /* Marvel titles carry their run years — "Fantastic Four (1998 - 2012)". The years
@@ -536,96 +634,6 @@
   function seriesName(title) {
     return str(String(title == null ? '' : title)
       .replace(/\s*\((\d{4})(\s*[-–]\s*(\d{4}|Present))?\)\s*$/i, ''), 200);
-  }
-
-  function marvelSearchSeries(query) {
-    return marvelFetch('series', {
-      titleStartsWith: query, limit: 20, orderBy: '-startYear'
-    }).then(function (data) {
-      return (data.results || []).filter(Boolean).map(function (r) {
-        return {
-          id: r.id,
-          title: str(r.title, 200),
-          name: seriesName(r.title),
-          startYear: numOrEmpty(r.startYear),
-          endYear: numOrEmpty(r.endYear),
-          cover: marvelImage(r.thumbnail, 'portrait_medium')
-        };
-      });
-    });
-  }
-
-  /* Walk the pages until Marvel runs out, the issue cap is hit, or the page cap is —
-     a long-running series should not fire off dozens of calls against a daily quota. */
-  function marvelSeriesIssues(seriesId, onProgress) {
-    var all = [];
-    function page(offset, pageNo) {
-      return marvelFetch('comics', {
-        series: seriesId, noVariants: true, orderBy: 'issueNumber',
-        formatType: 'comic', limit: MARVEL_PAGE, offset: offset
-      }).then(function (data) {
-        var results = (data.results || []).filter(Boolean);
-        all = all.concat(results);
-        var total = typeof data.total === 'number' ? data.total : all.length;
-        if (onProgress) onProgress(all.length, total);
-        var more = all.length < total && results.length === MARVEL_PAGE &&
-          pageNo < MARVEL_MAX_PAGES && all.length < MAX_ISSUES;
-        return more ? page(offset + MARVEL_PAGE, pageNo + 1) : { comics: all, total: total };
-      });
-    }
-    return page(0, 1);
-  }
-
-  function creatorsFrom(comics) {
-    var out = { writer: '', artist: '' };
-    for (var i = 0; i < comics.length && !(out.writer && out.artist); i++) {
-      var items = (comics[i].creators && comics[i].creators.items) || [];
-      items.forEach(function (c) {
-        if (!c || !c.name) return;
-        var role = String(c.role || '').toLowerCase();
-        if (!out.writer && role.indexOf('writer') !== -1) out.writer = str(c.name, 200);
-        if (!out.artist && (role.indexOf('penciller') !== -1 || role.indexOf('artist') !== -1)) {
-          out.artist = str(c.name, 200);
-        }
-      });
-    }
-    return out;
-  }
-
-  function issueLabelOf(comic) {
-    var n = comic.issueNumber;
-    if (typeof n === 'number' && isFinite(n)) {
-      /* Marvel returns issue numbers as floats: 570 comes back as 570.0. */
-      return String(n % 1 === 0 ? Math.round(n) : n);
-    }
-    var title = str(comic.title, 40);
-    var m = title.match(/#\s*([\d.]+)/);
-    return m ? m[1] : title;
-  }
-
-  function entryFromMarvel(series, comics) {
-    var people = creatorsFrom(comics);
-    var cover = series.cover;
-    for (var i = 0; i < comics.length && !cover; i++) cover = marvelImage(comics[i].thumbnail);
-
-    return {
-      series: series.name || seriesName(series.title),
-      title: '',
-      issues: comics.slice(0, MAX_ISSUES).map(function (c) {
-        return { label: issueLabelOf(c), done: false, url: marvelDetailUrl(c) };
-      }),
-      writer: people.writer,
-      artist: people.artist,
-      publisher: 'Marvel',
-      year: series.startYear,
-      service: 'mu',
-      cover: cover,
-      started: false,
-      rating: 0,
-      tags: [],
-      notes: '',
-      url: ''
-    };
   }
 
   /* ---------------- share links ---------------- */
@@ -1257,15 +1265,13 @@
     marvelPick = null;
     $('marvelQuery').value = '';
     $('marvelResults').innerHTML = '';
+    $('marvelResults').dataset.payload = '[]';
     $('marvelChosen').hidden = true;
     $('marvelAddBtn').disabled = true;
-    marvelStatus(state.prefs.marvelKey
-      ? 'Search Marvel for a series, then pick which issues to add.'
-      : 'No Marvel public key yet — add one under Services to use this.');
-    $('marvelSearchBtn').disabled = !state.prefs.marvelKey;
-    $('marvelQuery').disabled = !state.prefs.marvelKey;
+    $('marvelUnlimited').checked = false;
+    marvelStatus('Search Marvel by series, arc or issue title — no account or key needed.');
     $('marvelDialog').showModal();
-    if (state.prefs.marvelKey) $('marvelQuery').focus();
+    $('marvelQuery').focus();
   }
 
   function marvelStatus(msg, isError) {
@@ -1275,28 +1281,32 @@
   }
 
   function runMarvelSearch() {
-    var q = str($('marvelQuery').value, 100);
-    if (!q) { marvelStatus('Type a series title first.'); return; }
+    var raw = $('marvelQuery').value;
     marvelPick = null;
     $('marvelChosen').hidden = true;
     $('marvelAddBtn').disabled = true;
     $('marvelResults').innerHTML = '';
-    marvelStatus('Searching Marvel…');
+    marvelStatus('Searching…');
 
-    marvelSearchSeries(q).then(function (list) {
-      if (!list.length) { marvelStatus('No series on Marvel starts with “' + q + '”.'); return; }
-      marvelStatus(plural(list.length, 'series', 'series') + ' found — pick one.');
+    metaSearchSeries(raw).then(function (res) {
+      var list = res.series;
+      if (!list.length) { marvelStatus('Nothing matched “' + metaQuery(raw) + '”.'); return; }
+
+      $('marvelResults').dataset.payload = JSON.stringify(list);
       $('marvelResults').innerHTML = list.map(function (r, idx) {
-        var years = r.startYear ? (r.startYear + (r.endYear && r.endYear !== r.startYear ? '–' + r.endYear : '')) : '';
         return '<button type="button" class="marvel-row" data-idx="' + idx + '">' +
-          (r.cover ? '<img alt="" loading="lazy" src="' + esc(r.cover) + '">' : '<span class="marvel-nocover"></span>') +
           '<span class="marvel-row-text">' +
             '<span class="marvel-row-title">' + esc(r.title) + '</span>' +
-            (years ? '<span class="marvel-row-sub">' + esc(years) + '</span>' : '') +
+            '<span class="marvel-row-sub">' + plural(r.hits, 'match', 'matches') + '</span>' +
           '</span>' +
         '</button>';
       }).join('');
-      $('marvelResults').dataset.payload = JSON.stringify(list);
+
+      /* The search caps at 200 issues, and one long-running volume can fill all of
+         them — so say when a narrower query would surface more series. */
+      marvelStatus(res.capped
+        ? plural(list.length, 'series', 'series') + ' — add a year or issue number to the query if the one you want is missing.'
+        : plural(list.length, 'series', 'series') + ' — pick one.');
     }).catch(function (err) {
       marvelStatus(String(err && err.message ? err.message : err), true);
     });
@@ -1311,34 +1321,40 @@
     marvelStatus('Loading issues for “' + series.title + '”…');
     $('marvelAddBtn').disabled = true;
 
-    marvelSeriesIssues(series.id, function (got, total) {
+    metaSeriesIssues(series.id, function (got, total) {
       marvelStatus('Loading issues… ' + got + ' of ' + total);
     }).then(function (res) {
-      var entry = entryFromMarvel(series, res.comics);
-      marvelPick = { series: series, entry: entry, total: res.total };
-
-      var withLinks = entry.issues.filter(function (i) { return i.url; }).length;
-      $('marvelChosenTitle').textContent = series.title;
-      $('marvelChosenMeta').textContent = [
-        plural(entry.issues.length, 'issue'),
-        withLinks + ' with links',
-        [entry.writer, entry.artist].filter(Boolean).join(' / ')
-      ].filter(Boolean).join(' · ');
-      $('marvelIssues').value = summarizeIssues(entry.issues);
-      $('marvelChosen').hidden = false;
-      $('marvelAddBtn').disabled = entry.issues.length === 0;
-
-      var capped = res.total > entry.issues.length;
-      marvelStatus(capped
-        ? 'Marvel lists ' + res.total + ' issues; the first ' + entry.issues.length + ' were fetched. Trim the list below before adding.'
+      marvelPick = { series: series, items: res.items, total: res.total };
+      showMarvelPick();
+      marvelStatus(res.total > res.items.length
+        ? 'Marvel lists ' + res.total + ' issues; the first ' + res.items.length + ' were fetched.'
         : 'Trim the issue list below if you only want part of the run.');
     }).catch(function (err) {
       marvelStatus(String(err && err.message ? err.message : err), true);
     });
   }
 
-  function addMarvelEntry() {
+  /* Rebuilt whenever the Unlimited filter is toggled, so the range box always
+     reflects what would actually be added. */
+  function showMarvelPick() {
     if (!marvelPick) return;
+    var entry = entryFromMeta(marvelPick.series, marvelPick.items, $('marvelUnlimited').checked);
+    marvelPick.entry = entry;
+
+    var onMU = marvelPick.items.filter(function (i) { return i.unlimitedDate; }).length;
+    $('marvelChosenTitle').textContent = marvelPick.series.title;
+    $('marvelChosenMeta').textContent = [
+      plural(entry.issues.length, 'issue'),
+      onMU + ' of ' + marvelPick.items.length + ' on Unlimited',
+      entry.year ? String(entry.year) : ''
+    ].filter(Boolean).join(' · ');
+    $('marvelIssues').value = summarizeIssues(entry.issues);
+    $('marvelChosen').hidden = false;
+    $('marvelAddBtn').disabled = entry.issues.length === 0;
+  }
+
+  function addMarvelEntry() {
+    if (!marvelPick || !marvelPick.entry) return;
     var entry = marvelPick.entry;
 
     /* The range box is the same syntax as everywhere else, so trimming a run reuses
@@ -1355,8 +1371,7 @@
     var list = activeList();
     list.entries.push(sanitizeEntry({
       series: entry.series, title: entry.title, issues: issues,
-      writer: entry.writer, artist: entry.artist, publisher: entry.publisher,
-      year: entry.year, service: entry.service, cover: entry.cover
+      publisher: entry.publisher, year: entry.year, service: entry.service
     }));
     marvelPick = null;
     save();
@@ -1447,7 +1462,7 @@
           'placeholder="https://example.com/search?q={q}" value="' + esc(s.template) + '"></label>' +
       '</div>';
     }).join('');
-    $('marvelKeyInput').value = state.prefs.marvelKey;
+    $('metaApiInput').value = state.prefs.metaApi;
     $('servicesDialog').showModal();
   }
 
@@ -1471,7 +1486,9 @@
     });
 
     state.prefs.services = sanitizeServices(Object.keys(draft).map(function (k) { return draft[k]; }));
-    state.prefs.marvelKey = marvelKeyOf($('marvelKeyInput').value);
+    var typedApi = str($('metaApiInput').value, 300);
+    state.prefs.metaApi = typedApi ? (safeUrl(typedApi, 300) || state.prefs.metaApi) : '';
+    if (typedApi && !safeUrl(typedApi, 300)) rejected++;
     save();
     fillServiceSelects();      /* a renamed service has to show up in the pickers too */
     render();
@@ -1753,6 +1770,7 @@
     $('marvelQuery').addEventListener('keydown', function (e) {
       if (e.key === 'Enter') { e.preventDefault(); runMarvelSearch(); }
     });
+    $('marvelUnlimited').addEventListener('change', showMarvelPick);
     $('marvelResults').addEventListener('click', function (e) {
       var row = e.target.closest('.marvel-row');
       if (row) chooseMarvelSeries(parseInt(row.dataset.idx, 10));
@@ -1848,11 +1866,12 @@
     migrateV1: migrateV1,
     statusOf: statusOf,
     linkForIssue: linkForIssue,
-    entryFromMarvel: entryFromMarvel,
-    issueLabelOf: issueLabelOf,
+    entryFromMeta: entryFromMeta,
     seriesName: seriesName,
-    marvelImage: marvelImage,
-    marvelDetailUrl: marvelDetailUrl,
+    metaQuery: metaQuery,
+    metaError: metaError,
+    sortIssuesAscending: sortIssuesAscending,
+    uniqueLabels: uniqueLabels,
     listProgress: listProgress,
     state: function () { return state; }
   };
