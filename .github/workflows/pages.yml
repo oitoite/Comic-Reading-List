@@ -22,11 +22,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # enablement lets the first run turn Pages on itself, so deploying does not
-      # depend on someone having flipped the repository setting by hand first.
+      # Pages must be enabled once by hand (Settings -> Pages -> Source: GitHub
+      # Actions). configure-pages cannot do it: creating a Pages site needs repo
+      # admin rights, which GITHUB_TOKEN does not have.
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: .
