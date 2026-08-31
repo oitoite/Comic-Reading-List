@@ -7,6 +7,14 @@
 <meta name="description" content="Build ordered reading playlists of comic runs and arcs, and tick off issues as you read them on Marvel Unlimited or DC Universe Infinite.">
 <meta name="color-scheme" content="dark light">
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="assets/icons/icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#131318">
+<!-- Add to Home Screen on iOS: launches without Safari chrome, dark status bar. -->
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Longbox">
 <link rel="stylesheet" href="assets/styles.css">
 <script>
 /* Apply the saved theme before first paint so the page never flashes the wrong one. */
@@ -29,8 +37,8 @@
   </div>
   <div class="topbar-actions">
     <button class="btn ghost" id="servicesBtn" title="Edit the search links used for Marvel Unlimited, DC Universe Infinite and others">Services</button>
-    <button class="btn ghost" id="importBtn" title="Import a JSON backup">Import</button>
-    <button class="btn ghost" id="exportBtn" title="Download a JSON backup">Export</button>
+    <button class="btn ghost" id="backupBtn" title="Save a copy to Files, iCloud Drive or anywhere else">Save<span class="wide-only"> a copy</span></button>
+    <button class="btn ghost" id="importBtn" title="Restore from a saved copy">Restore</button>
     <button class="icon-btn" id="themeBtn" aria-label="Toggle colour theme" title="Toggle theme">&#9789;</button>
     <input type="file" id="importFile" accept="application/json,.json" hidden>
   </div>
@@ -45,8 +53,9 @@
     </div>
     <ul class="list-nav" id="listNav"></ul>
     <div class="sidebar-foot">
+      <p class="backup-note" id="backupNote" hidden></p>
       <button class="btn ghost small" id="servicesBtnAlt">Services &amp; search links</button>
-      <p class="hint">Counts are issues read, not entries. Everything stays in this browser &mdash; export a backup or send a share link before clearing site data.</p>
+      <p class="hint">Counts are issues read, not entries. Drag the grips to reorder playlists. Everything stays in this browser, so keep a saved copy.</p>
     </div>
   </aside>
 
@@ -96,9 +105,14 @@
           <button class="icon-btn" id="gridViewBtn" title="Grid view" aria-label="Grid view">&#9638;</button>
           <button class="icon-btn is-active" id="listViewBtn" title="List view" aria-label="List view">&#9776;</button>
         </div>
-        <button class="btn" id="marvelBtn" title="Search Marvel and fill everything in automatically">Find on Marvel</button>
-        <button class="btn" id="bulkBtn" title="Paste a whole reading order at once">Bulk add</button>
-        <button class="btn primary" id="addEntryBtn">+ Add</button>
+        <button class="btn primary" id="marvelBtn" title="Search Marvel and fill everything in automatically">Search Marvel</button>
+        <details class="more-menu">
+          <summary class="btn ghost" title="Other ways to add">Add manually</summary>
+          <div class="more-menu-panel">
+            <button class="btn ghost small" id="bulkBtn" type="button">Paste a reading order</button>
+            <button class="btn ghost small" id="addEntryBtn" type="button">Type one in by hand</button>
+          </div>
+        </details>
       </div>
     </section>
 
@@ -107,12 +121,14 @@
     <div class="empty" id="empty" hidden>
       <p class="empty-art" aria-hidden="true">&#9634;</p>
       <h3 id="emptyTitle">Nothing on this playlist yet</h3>
-      <p id="emptyText">Add a run or arc, or paste a whole reading order at once.</p>
+      <p id="emptyText">Search Marvel for a run and it fills in the issues, links and year for you.</p>
       <div class="empty-actions">
-        <button class="btn primary" id="emptyAddBtn">+ Add a run</button>
-        <button class="btn" id="emptyMarvelBtn">Find on Marvel</button>
-        <button class="btn" id="emptyBulkBtn">Bulk add</button>
+        <button class="btn primary" id="emptyMarvelBtn">Search Marvel</button>
       </div>
+      <p class="empty-alt">
+        or <button class="linkish" id="emptyBulkBtn" type="button">paste a reading order</button>
+        &middot; <button class="linkish" id="emptyAddBtn" type="button">type one in by hand</button>
+      </p>
     </div>
 
   </main>
@@ -392,5 +408,14 @@ Watchmen"></textarea>
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
 <script src="assets/app.js"></script>
+<script>
+/* Offline support. Registered after load so it never delays first paint, and skipped
+   on file:// where service workers are not allowed. */
+if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js').catch(function () { /* offline is optional */ });
+  });
+}
+</script>
 </body>
 </html>

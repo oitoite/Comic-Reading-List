@@ -11,6 +11,11 @@ Last Hunt` is one row that expands into three tickable issues.
 ## Features
 
 - **Playlists in reading order** — drag to reorder; list view numbers the rows 1, 2, 3…
+- **Reorder by touch** — drag an entry by its handle, or long-press anywhere on a row.
+  Playlists reorder the same way from the sidebar grips. Built on pointer events, so it
+  works on a phone; HTML5 drag-and-drop does not.
+- **Installable** — Add to Home Screen on iOS and it launches full-screen with its own
+  icon, and keeps working offline.
 - **Issue-level progress** — each entry opens a tray of issue pills. Tick them one by one, or
   use *Mark all* / *Clear*. Every count in the app is **issues read, not entries read**.
 - **Issue ranges** — type `294-296, 300, Annual 1` and get five issues. Prefixes (`Annual 1-3`),
@@ -41,7 +46,9 @@ Last Hunt` is one row that expands into three tickable issues.
 - **Share links** — pack a whole playlist into a URL and send it. Opening one offers a copy.
 - **Rich metadata** — writer, artist, publisher, year, cover image, tags, notes, 5-star rating.
 - **Search, filter, sort**, grid or list view, light and dark themes.
-- **JSON import/export**, including old v1 backups.
+- **Save a copy** — one tap opens the iOS share sheet, so a backup lands in Files or
+  iCloud Drive; elsewhere it downloads. **Restore** reads one back, including old v1
+  backups. The sidebar says so when the only copy is the browser's.
 - **Keyboard shortcuts** — `/` focuses search, `n` adds an entry, `b` opens bulk add.
 
 ## Service search templates
@@ -131,15 +138,27 @@ Long playlists make long URLs, and some chat apps and mail clients truncate them
 shows the character count and warns past ~8,000; for very large playlists, an exported JSON file
 travels better.
 
+## Installing it on a phone
+
+Open the site in Safari, tap **Share → Add to Home Screen**. It launches without browser
+chrome, with its own icon, and the service worker keeps the app shell cached so it opens
+without a connection — the Marvel lookup obviously still needs one.
+
+The app is four static files plus a manifest and a service worker; the worker is
+network-first, so a deploy is picked up on the next launch rather than being pinned to a
+stale cache.
+
 ## Data and privacy
 
 Everything lives in your browser's `localStorage` under the key `longbox.playlists.v2` — nothing
 is uploaded anywhere. The key is deliberately specific: all GitHub Pages project sites on one
 account share a single origin, so a generic name could collide with another app's storage.
 
-Data does not follow you between browsers or devices, and clearing site data erases it. Use
-**Export** for a JSON backup, **Import** to load one elsewhere (imports are added alongside your
-existing playlists, never replacing them), or a share link to move a single playlist.
+Data does not follow you between browsers or devices, and clearing site data erases it — so
+**Save a copy** matters. On iOS that opens the share sheet, which is the route into Files and
+iCloud Drive; on a desktop it downloads a JSON file. **Restore** loads one back, adding its
+playlists alongside your existing ones rather than replacing them. A share link moves a single
+playlist. The sidebar nags when the last saved copy is more than a fortnight old.
 
 ### Upgrading from v1
 

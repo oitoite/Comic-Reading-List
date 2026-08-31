@@ -40,6 +40,8 @@
 html, body { height: 100%; }
 body {
   margin: 0;
+  /* Standalone mode has no browser chrome, so respect the notch and home indicator. */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   font-family: var(--font);
   background: var(--bg);
   color: var(--text);
@@ -118,16 +120,28 @@ code { font-family: var(--mono); font-size: .92em; background: var(--bg-sunken);
 .sidebar-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
 .sidebar-head h2 { font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); }
 .list-nav { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; flex: 1; }
-.list-nav button {
-  width: 100%; text-align: left; background: transparent; border: 0; cursor: pointer;
-  padding: .5rem .6rem; border-radius: var(--radius-sm);
+.nav-item {
+  display: flex; align-items: center; gap: .15rem; border-radius: var(--radius-sm);
+  /* a long press must not select text or raise the iOS callout */
+  user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+}
+.nav-item.dragging { opacity: .5; background: var(--bg-sunken); }
+.nav-grip {
+  flex: 0 0 auto; cursor: grab; color: var(--line); font-size: .8rem;
+  padding: .5rem .15rem; touch-action: none; line-height: 1;
+}
+.nav-item:hover .nav-grip { color: var(--text-dim); }
+.list-nav .nav-btn {
+  flex: 1; min-width: 0;
+  text-align: left; background: transparent; border: 0; cursor: pointer;
+  padding: .5rem .5rem .5rem .2rem; border-radius: var(--radius-sm);
   display: flex; align-items: center; justify-content: space-between; gap: .5rem;
   font-size: .9rem;
 }
-.list-nav button:hover { background: var(--bg-sunken); }
-.list-nav button.is-active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.list-nav .nav-btn:hover { background: var(--bg-sunken); }
+.list-nav .nav-btn.is-active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 .list-nav .count { font-size: .75rem; color: var(--text-dim); font-variant-numeric: tabular-nums; }
-.list-nav button.is-active .count { color: var(--accent); }
+.list-nav .nav-btn.is-active .count { color: var(--accent); }
 .list-nav .nav-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sidebar-foot { display: flex; flex-direction: column; align-items: flex-start; gap: .6rem; }
 .sidebar-foot .hint { font-size: .72rem; color: var(--text-dim); line-height: 1.45; margin: 0; }
@@ -183,8 +197,12 @@ select { width: auto; cursor: pointer; }
   transition: border-color .12s;
 }
 .card:hover { border-color: var(--text-dim); }
-.card.dragging { opacity: .45; }
-.card.drop-target { border-color: var(--accent); }
+.card.dragging { opacity: .5; border-color: var(--accent); box-shadow: var(--shadow); }
+/* While a drag is live, nothing else should scroll, select or fire a hover state. */
+body.is-reordering { cursor: grabbing; }
+body.is-reordering .card, body.is-reordering .nav-item {
+  user-select: none; -webkit-user-select: none; touch-action: none;
+}
 .card-main { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 
 /* Reading-order numbers: a CSS counter, so nothing has to renumber in JS. */
@@ -287,6 +305,7 @@ select { width: auto; cursor: pointer; }
 .list-view .card-main {
   flex-direction: row; align-items: center; gap: .6rem;
   padding: .35rem .6rem;
+  -webkit-touch-callout: none;
 }
 .list-view .card { box-shadow: none; }
 .list-view .cover {
@@ -321,8 +340,31 @@ select { width: auto; cursor: pointer; }
 .list-view .tags { flex: 0 1 auto; max-width: 130px; flex-wrap: nowrap; overflow: hidden; }
 .list-view .card-notes { display: none; }
 .list-view .card-actions { margin: 0; padding: 0; flex: 0 0 auto; flex-wrap: nowrap; }
-.drag-handle { cursor: grab; color: var(--text-dim); padding: 0 .2rem; user-select: none; }
+.drag-handle {
+  cursor: grab; color: var(--text-dim); padding: .25rem .35rem; user-select: none;
+  touch-action: none; -webkit-touch-callout: none;
+}
 .grid-view .drag-handle { display: none; }
+
+/* ---------- "add manually" disclosure ---------- */
+.more-menu { position: relative; }
+.more-menu summary { list-style: none; cursor: pointer; display: inline-block; }
+.more-menu summary::-webkit-details-marker { display: none; }
+.more-menu-panel {
+  position: absolute; right: 0; top: calc(100% + .3rem); z-index: 20;
+  background: var(--bg-elev); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow); padding: .3rem; display: flex; flex-direction: column; gap: .2rem;
+  min-width: 190px;
+}
+.more-menu-panel .btn { text-align: left; }
+.linkish {
+  background: none; border: 0; padding: 0; cursor: pointer;
+  color: var(--accent); font: inherit; text-decoration: underline;
+}
+.empty-alt { font-size: .85rem; color: var(--text-dim); margin-top: .9rem; }
+.backup-note {
+  margin: 0; font-size: .72rem; line-height: 1.45; color: var(--yellow);
+}
 
 /* ---------- empty state ---------- */
 .empty { text-align: center; padding: 4rem 1rem; color: var(--text-dim); }
@@ -453,6 +495,19 @@ select { width: auto; cursor: pointer; }
   .list-title-row h2 { font-size: 1.3rem; }
   /* The sidebar keeps its own Services button, so hiding this one costs nothing. */
   .topbar-actions #servicesBtn { display: none; }
+  /* Keep the whole bar on one row: the mark goes, the buttons get compact. */
+  .brand-mark { display: none; }
+  .brand h1 { font-size: .95rem; }
+  .topbar { gap: .4rem; padding: .6rem .7rem; }
+  .topbar-actions { gap: .25rem; }
+  .topbar-actions .btn { padding: .3rem .55rem; font-size: .78rem; }
+  .inline-field select { max-width: 150px; }
+}
+/* Narrowest phones: trim the button label rather than let the bar overflow. */
+@media (max-width: 380px) {
+  .wide-only { display: none; }
+  .brand h1 { font-size: .9rem; }
+  .topbar-actions .btn { padding: .3rem .45rem; }
 }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }

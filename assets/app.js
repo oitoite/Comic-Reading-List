@@ -193,7 +193,8 @@
       version: SCHEMA_VERSION,
       lists: [{ id: uid(), name: 'My reading list', service: 'mu', createdAt: Date.now(), entries: [] }],
       activeListId: null,
-      prefs: { theme: 'dark', sort: 'order', view: 'list', metaApi: '', services: DEFAULT_SERVICES.map(clone) }
+      prefs: { theme: 'dark', sort: 'order', view: 'list', metaApi: '', backedUpAt: 0,
+               services: DEFAULT_SERVICES.map(clone) }
     };
   }
 
@@ -326,6 +327,7 @@
         sort: 'order',
         view: prefs.view === 'grid' ? 'grid' : 'list',
         metaApi: '',
+        backedUpAt: 0,
         services: DEFAULT_SERVICES.map(clone)
       }
     };
@@ -347,6 +349,7 @@
         sort: sort,
         view: prefs.view === 'grid' ? 'grid' : 'list',
         metaApi: safeUrl(prefs.metaApi, 300),
+        backedUpAt: typeof prefs.backedUpAt === 'number' ? prefs.backedUpAt : 0,
         services: sanitizeServices(prefs.services)
       }
     };
@@ -792,6 +795,7 @@
     renderSidebar();
     renderHeader();
     renderEntries();
+    renderBackupNote();
   }
 
   function renderSidebar() {
@@ -799,21 +803,35 @@
     nav.innerHTML = '';
     state.lists.forEach(function (list) {
       var li = document.createElement('li');
-      var btn = document.createElement('button');
-      btn.className = list.id === state.activeListId ? 'is-active' : '';
-      btn.type = 'button';
+      li.className = 'nav-item';
+      li.dataset.id = list.id;
       var p = listProgress(list);
-      btn.innerHTML = '<span class="nav-name">' + esc(list.name) + '</span>' +
-        '<span class="count">' + p.done + '/' + p.total + '</span>';
-      btn.addEventListener('click', function () {
+      li.innerHTML =
+        '<span class="nav-grip" aria-hidden="true">⠿</span>' +
+        '<button type="button" class="nav-btn' + (list.id === state.activeListId ? ' is-active' : '') + '">' +
+          '<span class="nav-name">' + esc(list.name) + '</span>' +
+          '<span class="count">' + p.done + '/' + p.total + '</span>' +
+        '</button>';
+      li.querySelector('.nav-btn').addEventListener('click', function () {
+        if (document.body.classList.contains('is-reordering')) return;
         state.activeListId = list.id;
         ui.expanded = {};
         save();
         $('sidebar').classList.remove('open');
         render();
       });
-      li.appendChild(btn);
       nav.appendChild(li);
+    });
+
+    /* Playlists reorder the same way entries do: grip to drag, long press anywhere. */
+    enableReorder({
+      container: nav,
+      itemSelector: '.nav-item',
+      handleSelector: '.nav-grip',
+      onCommit: function (ids) {
+        state.lists = reorderById(state.lists, ids);
+        save();
+      }
     });
   }
 
@@ -918,6 +936,20 @@
 
     var draggable = ordered && ui.view === 'list' && !ui.query && ui.status === 'all';
     entries.forEach(function (e) { wrap.appendChild(card(e, draggable)); });
+
+    if (draggable) {
+      enableReorder({
+        container: wrap,
+        itemSelector: '.card',
+        handleSelector: '.drag-handle',
+        ignoreSelector: 'button, a, input, select, textarea',
+        onCommit: function (ids) {
+          var list = activeList();
+          list.entries = reorderById(list.entries, ids);
+          save();
+        }
+      });
+    }
   }
 
   function card(e, draggable) {
@@ -1017,7 +1049,6 @@
       else if (act === 'none') setAllIssues(e.id, false);
     });
 
-    if (draggable) enableDrag(el);
     return el;
   }
 
@@ -1126,44 +1157,112 @@
 
   /* ---------------- drag reorder ---------------- */
 
-  var dragId = null;
+  /* Pointer events rather than HTML5 drag-and-drop: the latter does nothing at all on
+     iOS, which is where this app mostly gets used. A handle drags immediately; anywhere
+     else on the row drags after a long press, so a normal tap and a scroll still work. */
+  var LONG_PRESS_MS = 350;
+  var SLOP = 10;
 
-  function enableDrag(el) {
-    el.draggable = true;
-    el.addEventListener('dragstart', function (ev) {
-      dragId = el.dataset.id;
-      el.classList.add('dragging');
-      ev.dataTransfer.effectAllowed = 'move';
-      try { ev.dataTransfer.setData('text/plain', dragId); } catch (e) { /* ignore */ }
+  function enableReorder(opts) {
+    var container = opts.container;
+    if (!container || container.dataset.reorder === 'on') return;
+    container.dataset.reorder = 'on';
+
+    var pressTimer = null, startX = 0, startY = 0;
+    var item = null, dragging = false, pointerId = null;
+
+    function itemFrom(target) {
+      var el = target && target.closest ? target.closest(opts.itemSelector) : null;
+      return el && container.contains(el) ? el : null;
+    }
+
+    function cancelPress() {
+      clearTimeout(pressTimer);
+      pressTimer = null;
+    }
+
+    function begin() {
+      if (!item || dragging) return;
+      dragging = true;
+      item.classList.add('dragging');
+      document.body.classList.add('is-reordering');
+      if (navigator.vibrate) { try { navigator.vibrate(15); } catch (e) { /* ignore */ } }
+    }
+
+    function finish(commit) {
+      cancelPress();
+      if (dragging && item) {
+        item.classList.remove('dragging');
+        document.body.classList.remove('is-reordering');
+        if (commit) {
+          var ids = Array.prototype.map.call(
+            container.querySelectorAll(opts.itemSelector),
+            function (el) { return el.dataset.id; });
+          opts.onCommit(ids);
+        }
+      }
+      item = null; dragging = false; pointerId = null;
+    }
+
+    container.addEventListener('pointerdown', function (ev) {
+      if (ev.button != null && ev.button !== 0) return;
+      var el = itemFrom(ev.target);
+      if (!el) return;
+
+      item = el; pointerId = ev.pointerId;
+      startX = ev.clientX; startY = ev.clientY;
+
+      var onHandle = opts.handleSelector && ev.target.closest(opts.handleSelector);
+      if (onHandle) {
+        ev.preventDefault();
+        try { container.setPointerCapture(ev.pointerId); } catch (e) { /* ignore */ }
+        begin();
+        return;
+      }
+      /* Long press anywhere else, unless the finger is on something interactive. */
+      if (opts.ignoreSelector && ev.target.closest(opts.ignoreSelector)) { item = null; return; }
+      pressTimer = setTimeout(function () {
+        try { container.setPointerCapture(pointerId); } catch (e) { /* ignore */ }
+        begin();
+      }, LONG_PRESS_MS);
     });
-    el.addEventListener('dragend', function () {
-      el.classList.remove('dragging');
-      dragId = null;
-      document.querySelectorAll('.drop-target').forEach(function (n) { n.classList.remove('drop-target'); });
-    });
-    el.addEventListener('dragover', function (ev) {
-      if (!dragId || dragId === el.dataset.id) return;
+
+    container.addEventListener('pointermove', function (ev) {
+      if (!item) return;
+      if (!dragging) {
+        /* Moving before the press lands means the user is scrolling, not dragging. */
+        if (Math.abs(ev.clientX - startX) > SLOP || Math.abs(ev.clientY - startY) > SLOP) {
+          cancelPress();
+          item = null;
+        }
+        return;
+      }
       ev.preventDefault();
-      ev.dataTransfer.dropEffect = 'move';
-      el.classList.add('drop-target');
+
+      var over = itemFrom(document.elementFromPoint(ev.clientX, ev.clientY));
+      if (!over || over === item) return;
+      var box = over.getBoundingClientRect();
+      var after = opts.horizontal
+        ? ev.clientX > box.left + box.width / 2
+        : ev.clientY > box.top + box.height / 2;
+      over.parentNode.insertBefore(item, after ? over.nextSibling : over);
     });
-    el.addEventListener('dragleave', function () { el.classList.remove('drop-target'); });
-    el.addEventListener('drop', function (ev) {
-      ev.preventDefault();
-      el.classList.remove('drop-target');
-      if (!dragId || dragId === el.dataset.id) return;
-      moveEntry(dragId, el.dataset.id);
+
+    container.addEventListener('pointerup', function () { finish(true); });
+    container.addEventListener('pointercancel', function () { finish(false); });
+    container.addEventListener('contextmenu', function (ev) {
+      if (dragging) ev.preventDefault();
     });
   }
 
-  function moveEntry(fromId, toId) {
-    var entries = activeList().entries;
-    var from = entries.findIndex(function (e) { return e.id === fromId; });
-    var to = entries.findIndex(function (e) { return e.id === toId; });
-    if (from < 0 || to < 0) return;
-    entries.splice(to, 0, entries.splice(from, 1)[0]);
-    save();
-    renderEntries();
+  function reorderById(arr, ids) {
+    var byId = {};
+    arr.forEach(function (x) { byId[x.id] = x; });
+    var out = [];
+    ids.forEach(function (id) { if (byId[id]) { out.push(byId[id]); delete byId[id]; } });
+    /* anything the DOM did not mention keeps its old relative position at the end */
+    arr.forEach(function (x) { if (byId[x.id]) out.push(x); });
+    return out;
   }
 
   /* ---------------- entry dialog ---------------- */
@@ -1640,23 +1739,83 @@
 
   /* ---------------- import / export ---------------- */
 
-  function exportJson() {
-    var payload = JSON.stringify({
+  function backupPayload() {
+    return JSON.stringify({
       version: SCHEMA_VERSION,
       exportedAt: new Date().toISOString(),
       lists: state.lists,
       services: state.prefs.services
     }, null, 2);
-    var blob = new Blob([payload], { type: 'application/json' });
+  }
+
+  function backupName() {
+    return 'longbox-' + new Date().toISOString().slice(0, 10) + '.json';
+  }
+
+  function markBackedUp() {
+    state.prefs.backedUpAt = Date.now();
+    save();
+    renderBackupNote();
+  }
+
+  /* On iOS the share sheet is the route to Files and iCloud Drive; everywhere else a
+     download is the same gesture. Share can also be dismissed, which is not a failure. */
+  function saveCopy() {
+    var text = backupPayload();
+    var name = backupName();
+
+    if (navigator.canShare && typeof File === 'function') {
+      var file;
+      try { file = new File([text], name, { type: 'application/json' }); } catch (e) { file = null; }
+      if (file && navigator.canShare({ files: [file] })) {
+        navigator.share({ files: [file], title: name }).then(function () {
+          markBackedUp();
+          toast('Saved');
+        }).catch(function (err) {
+          /* AbortError just means the sheet was dismissed */
+          if (!err || err.name !== 'AbortError') downloadBackup(text, name);
+        });
+        return;
+      }
+    }
+    downloadBackup(text, name);
+  }
+
+  function downloadBackup(text, name) {
+    var blob = new Blob([text], { type: 'application/json' });
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     a.href = url;
-    a.download = 'longbox-' + new Date().toISOString().slice(0, 10) + '.json';
+    a.download = name;
     document.body.appendChild(a);
     a.click();
     a.remove();
     setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
-    toast('Backup downloaded');
+    markBackedUp();
+    toast('Saved a copy');
+  }
+
+  /* Browser storage is not a safe home for the only copy, so say so once it goes stale. */
+  var BACKUP_STALE_MS = 14 * 24 * 60 * 60 * 1000;
+
+  function renderBackupNote() {
+    var note = $('backupNote');
+    if (!note) return;
+    var issues = state.lists.reduce(function (a, l) { return a + listProgress(l).total; }, 0);
+    var last = state.prefs.backedUpAt;
+    if (!issues) { note.hidden = true; return; }
+    if (!last) {
+      note.textContent = 'This list only exists in this browser. Tap “Save a copy” to keep it somewhere safe.';
+      note.hidden = false;
+      return;
+    }
+    if (Date.now() - last > BACKUP_STALE_MS) {
+      var days = Math.floor((Date.now() - last) / 86400000);
+      note.textContent = 'Last saved ' + days + ' days ago — worth saving a fresh copy.';
+      note.hidden = false;
+      return;
+    }
+    note.hidden = true;
   }
 
   function importJson(file) {
@@ -1712,9 +1871,18 @@
     $('gridViewBtn').classList.toggle('is-active', ui.view === 'grid');
     $('listViewBtn').classList.toggle('is-active', ui.view === 'list');
 
-    $('addEntryBtn').addEventListener('click', function () { openEntryDialog(null); });
+    $('addEntryBtn').addEventListener('click', function () { closeMoreMenu(); openEntryDialog(null); });
     $('emptyAddBtn').addEventListener('click', function () { openEntryDialog(null); });
-    $('bulkBtn').addEventListener('click', openBulkDialog);
+    document.addEventListener('click', function (e) {
+      var menu = document.querySelector('.more-menu[open]');
+      if (menu && !menu.contains(e.target)) menu.removeAttribute('open');
+    });
+    function closeMoreMenu() {
+      var menu = document.querySelector('.more-menu[open]');
+      if (menu) menu.removeAttribute('open');
+    }
+
+    $('bulkBtn').addEventListener('click', function () { closeMoreMenu(); openBulkDialog(); });
     $('marvelBtn').addEventListener('click', openMarvelDialog);
     $('emptyMarvelBtn').addEventListener('click', openMarvelDialog);
     $('emptyBulkBtn').addEventListener('click', openBulkDialog);
@@ -1804,7 +1972,7 @@
     $('gridViewBtn').addEventListener('click', function () { setView('grid'); });
     $('listViewBtn').addEventListener('click', function () { setView('list'); });
 
-    $('exportBtn').addEventListener('click', exportJson);
+    $('backupBtn').addEventListener('click', saveCopy);
     $('importBtn').addEventListener('click', function () { $('importFile').click(); });
     $('importFile').addEventListener('change', function (e) {
       if (e.target.files && e.target.files[0]) importJson(e.target.files[0]);
@@ -1865,6 +2033,7 @@
     decodeShare: decodeShare,
     migrateV1: migrateV1,
     statusOf: statusOf,
+    reorderById: reorderById,
     linkForIssue: linkForIssue,
     entryFromMeta: entryFromMeta,
     seriesName: seriesName,
