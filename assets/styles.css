@@ -102,7 +102,7 @@ code { font-family: var(--mono); font-size: .92em; background: var(--bg-sunken);
   border-bottom: 1px solid var(--line);
 }
 .brand { display: flex; align-items: baseline; gap: .5rem; margin-right: auto; }
-.brand h1 { font-size: 1.05rem; letter-spacing: .02em; }
+.brand h1 { font-size: 1.05rem; letter-spacing: .02em; white-space: nowrap; }
 .brand-mark { color: var(--accent); letter-spacing: -.15em; font-size: .9rem; }
 .topbar-actions { display: flex; align-items: center; gap: .4rem; }
 .only-mobile { display: none; }
@@ -497,6 +497,9 @@ body.is-reordering .card, body.is-reordering .nav-item {
   .topbar-actions #servicesBtn { display: none; }
   /* Keep the whole bar on one row: the mark goes, the buttons get compact. */
   .brand-mark { display: none; }
+  /* "Unlimited Reading List" wraps to three lines on a phone; the home-screen
+     label is "Reading List", so the header says the same thing. */
+  .desk-only { display: none; }
   .brand h1 { font-size: .95rem; }
   .topbar { gap: .4rem; padding: .6rem .7rem; }
   .topbar-actions { gap: .25rem; }

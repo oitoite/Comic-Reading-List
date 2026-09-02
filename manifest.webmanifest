@@ -1,7 +1,7 @@
 {
-  "name": "Longbox — Comic Reading Playlists",
-  "short_name": "Longbox",
-  "description": "Ordered reading playlists of comic runs and arcs, with issue-by-issue progress.",
+  "name": "Unlimited Reading List",
+  "short_name": "Reading List",
+  "description": "Ordered reading playlists of comic runs and arcs, with issue-by-issue progress on Marvel Unlimited.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

@@ -1,11 +1,12 @@
-/* Longbox — ordered comic reading playlists.
+/* Unlimited Reading List — ordered comic reading playlists.
    No build step, no backend: state lives in localStorage and travels by JSON export
    or by a share link that carries the whole playlist in its own URL hash. */
 (function () {
   'use strict';
 
   /* A distinct key: every GitHub Pages project site on an account shares one origin,
-     so a generic name could collide with another app's storage. */
+     so a generic name could collide with another app's storage. It keeps the old
+     product name deliberately — renaming it would orphan everyone's existing data. */
   var STORAGE_KEY = 'longbox.playlists.v2';
   var LEGACY_KEY = 'longbox.state.v1';
   var SCHEMA_VERSION = 2;
@@ -1749,7 +1750,7 @@
   }
 
   function backupName() {
-    return 'longbox-' + new Date().toISOString().slice(0, 10) + '.json';
+    return 'reading-list-' + new Date().toISOString().slice(0, 10) + '.json';
   }
 
   function markBackedUp() {
@@ -2023,7 +2024,7 @@
 
   /* A small, deliberate test surface: the parsers and the share codec are pure
      functions and are far easier to check directly than through the DOM. */
-  window.__longbox = {
+  window.__readingList = {
     parseIssueSpec: parseIssueSpec,
     summarizeIssues: summarizeIssues,
     parseBulkLines: parseBulkLines,

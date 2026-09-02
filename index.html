@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Longbox &middot; Comic Reading Playlists</title>
+<title>Unlimited Reading List</title>
 <meta name="description" content="Build ordered reading playlists of comic runs and arcs, and tick off issues as you read them on Marvel Unlimited or DC Universe Infinite.">
 <meta name="color-scheme" content="dark light">
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
@@ -14,10 +14,11 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Longbox">
+<meta name="apple-mobile-web-app-title" content="Reading List">
 <link rel="stylesheet" href="assets/styles.css">
 <script>
-/* Apply the saved theme before first paint so the page never flashes the wrong one. */
+/* Apply the saved theme before first paint so the page never flashes the wrong one.
+   The storage keys keep their original names: renaming them would strand existing data. */
 (function () {
   try {
     var s = JSON.parse(localStorage.getItem('longbox.playlists.v2'))
@@ -33,7 +34,7 @@
   <button class="icon-btn only-mobile" id="menuToggle" aria-label="Toggle playlists panel">&#9776;</button>
   <div class="brand">
     <span class="brand-mark" aria-hidden="true">&#9646;&#9646;&#9646;</span>
-    <h1>Longbox</h1>
+    <h1><span class="desk-only">Unlimited </span>Reading List</h1>
   </div>
   <div class="topbar-actions">
     <button class="btn ghost" id="servicesBtn" title="Edit the search links used for Marvel Unlimited, DC Universe Infinite and others">Services</button>
@@ -307,7 +308,7 @@ Watchmen"></textarea>
   <form method="dialog" id="servicesForm" class="dialog-form">
     <h2>Services</h2>
     <p class="dialog-hint">
-      When neither the issue nor the entry has a direct link, Longbox builds one from these
+      When neither the issue nor the entry has a direct link, the app builds one from these
       templates. <code>{q}</code> becomes the series and issue together (<em>Fantastic Four #570</em>);
       <code>{series}</code> and <code>{issue}</code> are available separately, for a search that
       returns nothing when an issue number is in the query.

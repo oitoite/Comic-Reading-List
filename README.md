@@ -1,4 +1,4 @@
-# Longbox — Comic Reading Playlists
+# Unlimited Reading List
 
 A small, dependency-free web app for building **ordered reading playlists** of comic runs and
 arcs, and ticking off issues as you read them on Marvel Unlimited, DC Universe Infinite or
@@ -53,7 +53,7 @@ Last Hunt` is one row that expands into three tickable issues.
 
 ## Service search templates
 
-Longbox links out to whatever service you read on. When neither the issue nor the entry has a
+The app links out to whatever service you read on. When neither the issue nor the entry has a
 direct link, it builds one from that service's template. Three placeholders are available:
 
 | Placeholder  | Becomes                              |
@@ -93,7 +93,7 @@ other field.
 
 ## Marvel lookup
 
-**Find on Marvel** searches a free third-party index of Marvel comics
+**Search Marvel** searches a free third-party index of Marvel comics
 (`marvel.emreparker.com`) and builds a whole entry from it: the issue list in reading
 order, each issue's own `marvel.com` permalink, the year, and the publisher. No account,
 no API key, no backend — the service sends CORS headers, so the page calls it directly.
@@ -152,7 +152,9 @@ stale cache.
 
 Everything lives in your browser's `localStorage` under the key `longbox.playlists.v2` — nothing
 is uploaded anywhere. The key is deliberately specific: all GitHub Pages project sites on one
-account share a single origin, so a generic name could collide with another app's storage.
+account share a single origin, so a generic name could collide with another app's storage. It
+still carries the app's original name (Longbox) on purpose — renaming a storage key orphans
+every existing user's data, so it stays put.
 
 Data does not follow you between browsers or devices, and clearing site data erases it — so
 **Save a copy** matters. On iOS that opens the share sheet, which is the route into Files and
@@ -197,9 +199,12 @@ Serve it rather than opening `index.html` directly: `file://` pages get an opaqu
 ## Project layout
 
 ```
-index.html          markup and dialogs
-assets/styles.css   design tokens, layout, light/dark themes
-assets/app.js       state, migration, parsing, share codec, rendering
-assets/favicon.svg  icon
-.nojekyll           serve files as-is on Pages
+index.html            markup and dialogs
+assets/styles.css     design tokens, layout, light/dark themes
+assets/app.js         state, migration, parsing, share codec, rendering
+assets/favicon.svg    icon
+assets/icons/*.png    home-screen and manifest icons
+manifest.webmanifest  installable-app metadata
+sw.js                 offline shell
+.nojekyll             serve files as-is on Pages
 ```

@@ -1,6 +1,6 @@
-/* Offline shell for Longbox. The app itself is four static files, so they are cached
+/* Offline shell for Unlimited Reading List. The app is four static files, so they are cached
    on install; everything else (the metadata API) is deliberately left to the network. */
-var CACHE = 'longbox-v3';
+var CACHE = 'unlimited-reading-list-v1';
 var SHELL = [
   './',
   './index.html',
