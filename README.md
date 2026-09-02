@@ -45,7 +45,9 @@ Last Hunt` is one row that expands into three tickable issues.
   service's own app.
 - **Share links** — pack a whole playlist into a URL and send it. Opening one offers a copy.
 - **Rich metadata** — writer, artist, publisher, year, cover image, tags, notes, 5-star rating.
-- **Search, filter, sort**, grid or list view, light and dark themes.
+- **Search, filter, sort**, list or cover view, light and dark themes.
+- **Covers everywhere** — pulled automatically for Marvel entries. Anything without
+  artwork gets a colour block keyed to the series name rather than an empty slot.
 - **Save a copy** — one tap opens the iOS share sheet, so a backup lands in Files or
   iCloud Drive; elsewhere it downloads. **Restore** reads one back, including old v1
   backups. The sidebar says so when the only copy is the browser's.
@@ -102,8 +104,13 @@ Marvel's own developer API is gone, which is why this points at a third-party in
 instead. That also means it is someone else's service: if it moves or disappears, set
 **Services → Comic metadata API** to a replacement rather than waiting on a code change.
 
-What it does *not* provide: cover images and creator credits. That data is not in this
-index, so those fields are left blank for you to fill in if you care about them.
+Cover art and creator credits come from the API's per-issue endpoint, which carries both
+(the list endpoints do not). That is one extra call per entry rather than one per issue,
+so it costs nothing against the rate limit. Marvel's image CDN serves the artwork; the
+URLs are upgraded to https or the browser would block them as mixed content.
+
+If you trim a run before adding it, the cover and credits are re-fetched from the first
+issue you actually kept — otherwise a Hickman run would show a cover from 1998.
 
 ### Quirks worth knowing
 
@@ -137,6 +144,21 @@ and the entry count is capped.
 Long playlists make long URLs, and some chat apps and mail clients truncate them. The dialog
 shows the character count and warns past ~8,000; for very large playlists, an exported JSON file
 travels better.
+
+## The interface
+
+The app is built for a phone first, so the chrome stays out of the way:
+
+- **Tap a row to open its issues.** That is the main gesture — the tray holds the issue
+  pills plus the actions for that entry (start/finish, clear, per-issue links, edit,
+  remove), so none of them take up space until you want them.
+- **Two menus, not two rows of buttons.** The `⋯` beside the app name holds saving,
+  restoring, services and the theme; the `⋯` beside the playlist name holds sharing,
+  renaming, sort, service, view and delete.
+- **One primary action.** *Search Marvel* is pinned to the bottom of the screen on a
+  phone and sits above the list on a desktop. Manual entry lives behind *Add manually*.
+- **Status is the progress bar's colour** — grey not started, blue in progress, green
+  finished — rather than a text badge on every row.
 
 ## Installing it on a phone
 

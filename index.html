@@ -37,10 +37,16 @@
     <h1><span class="desk-only">Unlimited </span>Reading List</h1>
   </div>
   <div class="topbar-actions">
-    <button class="btn ghost" id="servicesBtn" title="Edit the search links used for Marvel Unlimited, DC Universe Infinite and others">Services</button>
-    <button class="btn ghost" id="backupBtn" title="Save a copy to Files, iCloud Drive or anywhere else">Save<span class="wide-only"> a copy</span></button>
-    <button class="btn ghost" id="importBtn" title="Restore from a saved copy">Restore</button>
-    <button class="icon-btn" id="themeBtn" aria-label="Toggle colour theme" title="Toggle theme">&#9789;</button>
+    <details class="menu">
+      <summary class="icon-btn" aria-label="App menu" title="Menu">&#8943;</summary>
+      <div class="menu-panel">
+        <button class="menu-item" id="backupBtn" type="button">Save a copy&hellip;</button>
+        <button class="menu-item" id="importBtn" type="button">Restore from a copy&hellip;</button>
+        <hr>
+        <button class="menu-item" id="servicesBtn" type="button">Services &amp; links&hellip;</button>
+        <button class="menu-item" id="themeBtn" type="button">Switch theme</button>
+      </div>
+    </details>
     <input type="file" id="importFile" accept="application/json,.json" hidden>
   </div>
 </header>
@@ -50,7 +56,7 @@
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-head">
       <h2>Playlists</h2>
-      <button class="btn small" id="newListBtn">+ New</button>
+      <button class="btn small" id="newListBtnAlt" type="button">+ New</button>
     </div>
     <ul class="list-nav" id="listNav"></ul>
     <div class="sidebar-foot">
@@ -65,57 +71,71 @@
     <section class="list-header">
       <div class="list-title-row">
         <h2 id="listTitle">&nbsp;</h2>
-        <div class="list-title-actions">
-          <label class="inline-field">
-            <span class="sr-only">Default service for this playlist</span>
-            <select id="listService" title="Default service for this playlist"></select>
-          </label>
-          <button class="btn ghost small" id="shareBtn">Share</button>
-          <button class="btn ghost small" id="renameListBtn">Rename</button>
-          <button class="btn ghost small danger" id="deleteListBtn">Delete</button>
-        </div>
+        <details class="menu">
+          <summary class="icon-btn" aria-label="Playlist menu" title="Playlist menu">&#8943;</summary>
+          <div class="menu-panel wide">
+            <button class="menu-item" id="shareBtn" type="button">Share this playlist&hellip;</button>
+            <button class="menu-item" id="renameListBtn" type="button">Rename&hellip;</button>
+            <button class="menu-item" id="newListBtn" type="button">New playlist&hellip;</button>
+            <hr>
+            <label class="menu-field">
+              <span>Sort</span>
+              <select id="sort">
+                <option value="order">Reading order</option>
+                <option value="added">Recently added</option>
+                <option value="series">Series A&ndash;Z</option>
+                <option value="title">Arc title</option>
+                <option value="progress">Progress</option>
+                <option value="year">Year</option>
+                <option value="rating">Rating</option>
+              </select>
+            </label>
+            <label class="menu-field">
+              <span>Read on</span>
+              <select id="listService" title="Default service for this playlist"></select>
+            </label>
+            <div class="menu-field">
+              <span>View</span>
+              <div class="view-toggle" role="group" aria-label="View mode">
+                <button class="icon-btn" id="gridViewBtn" title="Covers" aria-label="Cover view" type="button">&#9638;</button>
+                <button class="icon-btn is-active" id="listViewBtn" title="List" aria-label="List view" type="button">&#9776;</button>
+              </div>
+            </div>
+            <hr>
+            <button class="menu-item danger" id="deleteListBtn" type="button">Delete playlist&hellip;</button>
+          </div>
+        </details>
       </div>
-      <div class="stats" id="stats"></div>
-      <div class="progress" role="progressbar" aria-label="Issues read" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progressBar">
-        <div class="progress-fill" id="progressFill"></div>
+      <div class="progress-line">
+        <div class="progress" role="progressbar" aria-label="Issues read" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progressBar">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div class="stats" id="stats"></div>
       </div>
     </section>
 
     <section class="toolbar">
       <div class="search-wrap">
-        <input type="search" id="search" placeholder="Search series, arc, creator, issue, tag&hellip;" aria-label="Search this playlist">
+        <input type="search" id="search" placeholder="Search this playlist&hellip;" aria-label="Search this playlist">
       </div>
       <div class="filters" id="statusFilter" role="group" aria-label="Filter by status">
         <button class="chip is-active" data-status="all">All</button>
         <button class="chip" data-status="unread">Not started</button>
-        <button class="chip" data-status="reading">In progress</button>
-        <button class="chip" data-status="finished">Finished</button>
-      </div>
-      <div class="toolbar-right">
-        <label class="sr-only" for="sort">Sort by</label>
-        <select id="sort">
-          <option value="order">Reading order</option>
-          <option value="added">Recently added</option>
-          <option value="series">Series A&ndash;Z</option>
-          <option value="title">Arc title</option>
-          <option value="progress">Progress</option>
-          <option value="year">Year</option>
-          <option value="rating">Rating</option>
-        </select>
-        <div class="view-toggle" role="group" aria-label="View mode">
-          <button class="icon-btn" id="gridViewBtn" title="Grid view" aria-label="Grid view">&#9638;</button>
-          <button class="icon-btn is-active" id="listViewBtn" title="List view" aria-label="List view">&#9776;</button>
-        </div>
-        <button class="btn primary" id="marvelBtn" title="Search Marvel and fill everything in automatically">Search Marvel</button>
-        <details class="more-menu">
-          <summary class="btn ghost" title="Other ways to add">Add manually</summary>
-          <div class="more-menu-panel">
-            <button class="btn ghost small" id="bulkBtn" type="button">Paste a reading order</button>
-            <button class="btn ghost small" id="addEntryBtn" type="button">Type one in by hand</button>
-          </div>
-        </details>
+        <button class="chip" data-status="reading">Reading</button>
+        <button class="chip" data-status="finished">Done</button>
       </div>
     </section>
+
+    <div class="action-bar">
+      <button class="btn primary" id="marvelBtn" title="Search Marvel and fill everything in automatically">Search Marvel</button>
+      <details class="more-menu">
+        <summary class="btn ghost" title="Other ways to add">Add manually</summary>
+        <div class="more-menu-panel">
+          <button class="btn ghost small" id="bulkBtn" type="button">Paste a reading order</button>
+          <button class="btn ghost small" id="addEntryBtn" type="button">Type one in by hand</button>
+        </div>
+      </details>
+    </div>
 
     <section id="entries" class="entries list-view numbered" aria-live="polite"></section>
 
@@ -128,7 +148,7 @@
       </div>
       <p class="empty-alt">
         or <button class="linkish" id="emptyBulkBtn" type="button">paste a reading order</button>
-        &middot; <button class="linkish" id="emptyAddBtn" type="button">type one in by hand</button>
+        &middot; <button class="linkish" id="emptyAddBtn" type="button">add one by hand</button>
       </p>
     </div>
 
@@ -264,8 +284,11 @@ Watchmen"></textarea>
 
     <div id="marvelChosen" hidden>
       <div class="marvel-chosen">
-        <strong id="marvelChosenTitle"></strong>
-        <span class="dialog-hint" id="marvelChosenMeta"></span>
+        <img id="marvelCover" class="marvel-cover" alt="" hidden>
+        <span class="marvel-chosen-text">
+          <strong id="marvelChosenTitle"></strong>
+          <span class="dialog-hint" id="marvelChosenMeta"></span>
+        </span>
       </div>
       <label class="field checkbox">
         <input type="checkbox" id="marvelUnlimited">

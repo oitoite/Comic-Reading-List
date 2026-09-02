@@ -600,6 +600,45 @@
     return m ? numOrEmpty(m[1]) : '';
   }
 
+  /* Marvel serves its artwork over http; the site is https, so upgrade or the browser
+     blocks it as mixed content. */
+  function httpsUrl(v) {
+    return safeUrl(String(v == null ? '' : v).replace(/^http:\/\//i, 'https://'));
+  }
+
+  /* The list endpoints omit covers and creators; the per-issue endpoint has both.
+     One extra call per entry fills them in — a call per issue would blow the quota. */
+  function marvelCoverUrl(cover, variant) {
+    if (!cover || !cover.path) return '';
+    if (/image_not_available/i.test(cover.path)) return '';
+    return httpsUrl(cover.path + '/' + (variant || 'portrait_uncanny') + '.' + (cover.extension || 'jpg'));
+  }
+
+  function creditsFrom(creators) {
+    var out = { writer: '', artist: '' };
+    (Array.isArray(creators) ? creators : []).forEach(function (c) {
+      if (!c || !c.name) return;
+      var role = String(c.role || '').toLowerCase();
+      if (!out.writer && role.indexOf('writer') !== -1) out.writer = str(c.name, 200);
+      if (!out.artist && (role.indexOf('penciler') !== -1 || role.indexOf('penciller') !== -1 ||
+          role.indexOf('artist') !== -1)) out.artist = str(c.name, 200);
+    });
+    return out;
+  }
+
+  function metaIssueDetail(issueId) {
+    return metaFetch('/v1/issues/' + encodeURIComponent(issueId), {}).then(function (body) {
+      var credits = creditsFrom(body.creators);
+      return {
+        cover: marvelCoverUrl(body.cover),
+        writer: credits.writer,
+        artist: credits.artist
+      };
+    }).catch(function () {
+      return { cover: '', writer: '', artist: '' };   /* a missing cover is not a failure */
+    });
+  }
+
   function entryFromMeta(series, items, onlyUnlimited) {
     var chosen = sortIssuesAscending(items).filter(function (it) {
       return onlyUnlimited ? !!it.unlimitedDate : true;
@@ -851,13 +890,11 @@
       ? (rated.reduce(function (a, e) { return a + e.rating; }, 0) / rated.length).toFixed(1)
       : null;
 
-    var parts = [
-      '<span><b>' + entries.length + '</b> ' + (entries.length === 1 ? 'entry' : 'entries') + '</span>',
-      '<span><b>' + p.done + '</b> of <b>' + p.total + '</b> issues read</span>',
-      '<span><b>' + finished + '</b> finished</span>',
-      '<span><b>' + reading + '</b> in progress</span>'
-    ];
-    if (avg) parts.push('<span><b>' + avg + '</b> avg rating</span>');
+    /* One line, not five: the count that matters plus whatever is actually in flight. */
+    var parts = ['<span><b>' + p.done + '</b> of <b>' + p.total + '</b> issues read</span>'];
+    if (reading) parts.push('<span>' + reading + ' in progress</span>');
+    if (finished) parts.push('<span>' + finished + ' done</span>');
+    if (avg) parts.push('<span>' + avg + '★</span>');
     $('stats').innerHTML = parts.join('');
 
     $('progressFill').style.width = p.pct + '%';
@@ -953,9 +990,31 @@
     }
   }
 
+  /* A deterministic hue per series, so an entry with no cover still gets a stable,
+     recognisable colour block rather than an empty grey hole. */
+  function seriesHue(name) {
+    var h = 0, text = String(name || '');
+    for (var i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) % 360;
+    return h;
+  }
+
+  function initialsOf(name) {
+    var words = String(name || '').replace(/[^A-Za-z0-9 ]/g, ' ').trim().split(/\s+/);
+    if (!words[0]) return '?';
+    return (words.length > 1 ? words[0][0] + words[1][0] : words[0].slice(0, 2)).toUpperCase();
+  }
+
+  function coverHtml(e) {
+    if (e.cover) {
+      return '<div class="cover"><img alt="" loading="lazy" src="' + esc(e.cover) + '"></div>';
+    }
+    return '<div class="cover cover-blank" style="--hue:' + seriesHue(e.series) + '">' +
+      '<span>' + esc(initialsOf(e.series)) + '</span></div>';
+  }
+
   function card(e, draggable) {
     var el = document.createElement('article');
-    el.className = 'card' + (e.cover ? '' : ' no-cover');
+    el.className = 'card' + (ui.expanded[e.id] ? ' is-open' : '');
     el.dataset.id = e.id;
 
     var status = statusOf(e);
@@ -963,98 +1022,84 @@
     var total = e.issues.length;
     var pct = total ? Math.round((done / total) * 100) : 0;
     var single = total === 1 && !e.issues[0].label;
-
-    var coverInner = e.cover
-      ? '<img alt="" loading="lazy" src="' + esc(e.cover) + '">'
-      : '<div class="cover-fallback">' + esc(e.series) + '</div>';
-
-    var metas = metaLines(e).map(function (s) {
-      return '<div class="card-sub">' + esc(s) + '</div>';
-    }).join('');
-
-    var tags = e.tags.length
-      ? '<div class="tags">' + e.tags.map(function (t) { return '<span class="tag">' + esc(t) + '</span>'; }).join('') + '</div>'
-      : '';
-
-    var range = single ? 'Single book' : summarizeIssues(e.issues);
     var upNext = nextIssue(e);
     var link = linkForIssue(e, upNext);
-    var svc = serviceFor(e);
 
-    /* unread -> start, reading -> mark the whole run read, finished -> reset */
-    var next = {
-      unread: { label: 'Start', hint: 'Mark this run as started' },
-      reading: { label: 'Finish', hint: 'Tick every issue' },
-      finished: { label: 'Reset', hint: 'Clear every tick' }
-    }[status];
+    var meta = [
+      single ? 'Single book' : summarizeIssues(e.issues),
+      [e.writer, e.artist].filter(Boolean).join(' / '),
+      [e.publisher, e.year].filter(function (x) { return x !== '' && x != null; }).join(' · ')
+    ].filter(Boolean);
 
     el.innerHTML =
       '<div class="card-main">' +
-        (draggable ? '<span class="drag-handle" title="Drag to reorder">☰</span>' : '') +
-        '<div class="cover">' + coverInner + '</div>' +
-        '<span class="badge ' + status + '">' + esc(STATUSES[status]) + '</span>' +
+        (draggable ? '<span class="drag-handle" title="Drag to reorder">⠿</span>' : '') +
+        coverHtml(e) +
         '<div class="card-body">' +
           '<div class="card-head">' +
             '<div class="card-title">' + esc(e.series) + '</div>' +
             (e.title ? '<div class="card-arc">' + esc(e.title) + '</div>' : '') +
+            '<div class="card-sub">' + esc(meta.join(' · ')) + '</div>' +
           '</div>' +
-          '<div class="card-issues">' + esc(range) + '</div>' +
-          metas +
           '<div class="entry-progress" title="' + done + ' of ' + total + ' issues read">' +
-            '<div class="entry-bar"><div class="entry-fill" style="width:' + pct + '%"></div></div>' +
+            '<div class="entry-bar"><div class="entry-fill ' + status + '" style="width:' + pct + '%"></div></div>' +
             '<span class="entry-count">' + done + '/' + total + '</span>' +
           '</div>' +
-          (e.rating ? '<div class="card-stars" title="' + e.rating + ' out of 5">' + stars(e.rating) + '</div>' : '') +
-          (e.notes ? '<div class="card-notes">' + esc(e.notes) + '</div>' : '') +
-          tags +
-          '<div class="card-actions">' +
-            '<button class="btn small" data-act="cycle" title="' + esc(next.hint) + '">' + next.label + '</button>' +
-            '<button class="btn ghost small" data-act="toggle" aria-expanded="' + (ui.expanded[e.id] ? 'true' : 'false') + '">' +
-              'Issues ' + (ui.expanded[e.id] ? '▴' : '▾') + '</button>' +
-            (link
-              ? '<a class="btn ghost small" href="' + esc(link) + '" target="_blank" rel="noopener noreferrer" ' +
-                'title="' + esc((isDirect(e, upNext) ? 'Open direct link' : 'Search ' + svc.name) + (single ? '' : ' — #' + upNext.label)) + '">Read ↗</a>'
-              : '') +
-            '<button class="btn ghost small icon-act" data-act="edit" title="Edit" ' +
-              'aria-label="Edit ' + esc(e.series) + '">✎</button>' +
-            '<button class="btn ghost small icon-act danger" data-act="remove" title="Remove" ' +
-              'aria-label="Remove ' + esc(e.series) + '">×</button>' +
-          '</div>' +
+          (e.rating ? '<div class="card-stars">' + stars(e.rating) + '</div>' : '') +
+        '</div>' +
+        '<div class="card-side">' +
+          (link
+            ? '<a class="btn small read-btn" href="' + esc(link) + '" target="_blank" rel="noopener noreferrer" ' +
+              'title="' + esc((isDirect(e, upNext) ? 'Open' : 'Search') + (single ? '' : ' #' + upNext.label)) + '">Read</a>'
+            : '') +
+          '<button class="disclosure" data-act="toggle" aria-expanded="' + (ui.expanded[e.id] ? 'true' : 'false') + '" ' +
+            'aria-label="' + (ui.expanded[e.id] ? 'Hide' : 'Show') + ' issues for ' + esc(e.series) + '">' +
+            '<span aria-hidden="true">' + (ui.expanded[e.id] ? '⌃' : '⌄') + '</span></button>' +
         '</div>' +
       '</div>' +
-      (ui.expanded[e.id] ? issueTray(e) : '');
+      (ui.expanded[e.id] ? issueTray(e, status) : '');
 
     var img = el.querySelector('img');
     if (img) {
       img.addEventListener('error', function () {
         var holder = img.parentNode;
-        img.remove();
-        var fb = document.createElement('div');
-        fb.className = 'cover-fallback';
-        fb.textContent = e.series;
-        holder.insertBefore(fb, holder.firstChild);
+        holder.className = 'cover cover-blank';
+        holder.style.setProperty('--hue', seriesHue(e.series));
+        holder.innerHTML = '<span>' + esc(initialsOf(e.series)) + '</span>';
       });
     }
 
+    /* The row itself opens the issues — the thing you actually came to do. Buttons,
+       links and a finished drag all opt out. */
     el.addEventListener('click', function (ev) {
       var btn = ev.target.closest('[data-act]');
-      if (!btn) return;
-      var act = btn.dataset.act;
-      if (act === 'cycle') cycleEntry(e.id);
-      else if (act === 'toggle') toggleTray(e.id);
-      else if (act === 'edit') openEntryDialog(e.id);
-      else if (act === 'remove') removeEntry(e.id);
-      else if (act === 'issue') toggleIssue(e.id, parseInt(btn.dataset.idx, 10));
-      else if (act === 'links') openLinksDialog(e.id);
-      else if (act === 'all') setAllIssues(e.id, true);
-      else if (act === 'none') setAllIssues(e.id, false);
+      if (btn) {
+        var act = btn.dataset.act;
+        if (act === 'cycle') cycleEntry(e.id);
+        else if (act === 'toggle') toggleTray(e.id);
+        else if (act === 'edit') openEntryDialog(e.id);
+        else if (act === 'remove') removeEntry(e.id);
+        else if (act === 'issue') toggleIssue(e.id, parseInt(btn.dataset.idx, 10));
+        else if (act === 'links') openLinksDialog(e.id);
+        else if (act === 'none') clearIssues(e.id);
+        return;
+      }
+      if (ev.target.closest('a, .issue-tray, .drag-handle')) return;
+      if (document.body.classList.contains('is-reordering')) return;
+      toggleTray(e.id);
     });
 
     return el;
   }
 
-  function issueTray(e) {
+  function issueTray(e, status) {
     var single = e.issues.length === 1 && !e.issues[0].label;
+    var next = {
+      unread: 'Start reading',
+      reading: 'Mark all read',
+      finished: 'Clear progress'
+    }[status];
+
     var pills = e.issues.map(function (is, idx) {
       var url = linkForIssue(e, is);
       var label = is.label || 'Whole book';
@@ -1074,13 +1119,14 @@
     }).join('');
 
     return '<div class="issue-tray">' +
-      '<div class="tray-head">' +
-        '<span class="tray-title">' + (single ? 'Book' : plural(e.issues.length, 'issue')) + '</span>' +
-        '<button class="btn ghost small" data-act="links">Links</button>' +
-        '<button class="btn ghost small" data-act="all">Mark all</button>' +
-        '<button class="btn ghost small" data-act="none">Clear</button>' +
-      '</div>' +
       '<div class="pills">' + pills + '</div>' +
+      '<div class="tray-actions">' +
+        '<button class="btn small" data-act="cycle">' + next + '</button>' +
+        (single || status === 'unread' ? '' : '<button class="btn ghost small" data-act="none">Clear</button>') +
+        '<button class="btn ghost small" data-act="links">Links</button>' +
+        '<button class="btn ghost small" data-act="edit">Edit</button>' +
+        '<button class="btn ghost small danger" data-act="remove">Remove</button>' +
+      '</div>' +
     '</div>';
   }
 
@@ -1117,11 +1163,11 @@
     refreshEntry(id, idx);
   }
 
-  function setAllIssues(id, done) {
+  function clearIssues(id) {
     var e = findEntry(id);
     if (!e) return;
-    e.issues.forEach(function (i) { i.done = done; });
-    if (!done) e.started = false;
+    e.issues.forEach(function (i) { i.done = false; });
+    e.started = false;
     save();
     refreshEntry(id);
   }
@@ -1190,11 +1236,29 @@
       if (navigator.vibrate) { try { navigator.vibrate(15); } catch (e) { /* ignore */ } }
     }
 
+    /* A drag ends with pointerup, which the browser follows with a click on whatever
+       is underneath. Left alone that click would open a tray or switch playlist right
+       after a reorder, so the first click after a real drag is swallowed. */
+    function swallowNextClick() {
+      function swallow(ev) {
+        ev.stopPropagation();
+        ev.preventDefault();
+        cleanup();
+      }
+      function cleanup() {
+        container.removeEventListener('click', swallow, true);
+        clearTimeout(timer);
+      }
+      var timer = setTimeout(cleanup, 0);
+      container.addEventListener('click', swallow, true);
+    }
+
     function finish(commit) {
       cancelPress();
       if (dragging && item) {
         item.classList.remove('dragging');
         document.body.classList.remove('is-reordering');
+        swallowNextClick();
         if (commit) {
           var ids = Array.prototype.map.call(
             container.querySelectorAll(opts.itemSelector),
@@ -1424,8 +1488,20 @@
     metaSeriesIssues(series.id, function (got, total) {
       marvelStatus('Loading issues… ' + got + ' of ' + total);
     }).then(function (res) {
-      marvelPick = { series: series, items: res.items, total: res.total };
+      marvelPick = { series: series, items: res.items, total: res.total, detail: null };
       showMarvelPick();
+
+      /* Cover and credits come from one issue's detail — fetched after the list is
+         already on screen, so it never holds up the pick. */
+      var first = sortIssuesAscending(res.items)[0];
+      if (first && first.id != null) {
+        metaIssueDetail(first.id).then(function (detail) {
+          if (!marvelPick || marvelPick.series.id !== series.id) return;
+          marvelPick.detail = detail;
+          marvelPick.detailFor = first.id;
+          showMarvelPick();
+        });
+      }
       marvelStatus(res.total > res.items.length
         ? 'Marvel lists ' + res.total + ' issues; the first ' + res.items.length + ' were fetched.'
         : 'Trim the issue list below if you only want part of the run.');
@@ -1439,6 +1515,12 @@
   function showMarvelPick() {
     if (!marvelPick) return;
     var entry = entryFromMeta(marvelPick.series, marvelPick.items, $('marvelUnlimited').checked);
+    var detail = marvelPick.detail;
+    if (detail) {
+      entry.cover = detail.cover;
+      entry.writer = detail.writer;
+      entry.artist = detail.artist;
+    }
     marvelPick.entry = entry;
 
     var onMU = marvelPick.items.filter(function (i) { return i.unlimitedDate; }).length;
@@ -1446,8 +1528,12 @@
     $('marvelChosenMeta').textContent = [
       plural(entry.issues.length, 'issue'),
       onMU + ' of ' + marvelPick.items.length + ' on Unlimited',
-      entry.year ? String(entry.year) : ''
+      entry.year ? String(entry.year) : '',
+      [entry.writer, entry.artist].filter(Boolean).join(' / ')
     ].filter(Boolean).join(' · ');
+    var thumb = $('marvelCover');
+    if (entry.cover) { thumb.src = entry.cover; thumb.hidden = false; }
+    else { thumb.removeAttribute('src'); thumb.hidden = true; }
     $('marvelIssues').value = summarizeIssues(entry.issues);
     $('marvelChosen').hidden = false;
     $('marvelAddBtn').disabled = entry.issues.length === 0;
@@ -1455,7 +1541,8 @@
 
   function addMarvelEntry() {
     if (!marvelPick || !marvelPick.entry) return;
-    var entry = marvelPick.entry;
+    var pick = marvelPick;
+    var entry = pick.entry;
 
     /* The range box is the same syntax as everywhere else, so trimming a run reuses
        the parser: fetched issues keep their Marvel link, typed-in ones simply have none. */
@@ -1468,12 +1555,36 @@
         return { label: label, done: false, url: found ? found.url : '' };
       });
 
+    marvelPick = null;
+
+    /* The preview's cover comes from the series' first issue. If the run has been
+       trimmed to start somewhere else, take the artwork and credits from the issue
+       actually being added — otherwise a Hickman run gets a 1998 cover. */
+    var firstLabel = issues.length ? issues[0].label : '';
+    var firstItem = null;
+    pick.items.forEach(function (it) {
+      if (firstItem) return;
+      if (String(it.issueNumber) === firstLabel) firstItem = it;
+    });
+
+    if (firstItem && firstItem.id != null && firstItem.id !== pick.detailFor) {
+      metaIssueDetail(firstItem.id).then(function (detail) {
+        commitMarvelEntry(entry, issues, detail.cover ? detail : null);
+      });
+    } else {
+      commitMarvelEntry(entry, issues, null);
+    }
+  }
+
+  function commitMarvelEntry(entry, issues, detail) {
     var list = activeList();
     list.entries.push(sanitizeEntry({
       series: entry.series, title: entry.title, issues: issues,
-      publisher: entry.publisher, year: entry.year, service: entry.service
+      publisher: entry.publisher, year: entry.year, service: entry.service,
+      cover: detail ? detail.cover : entry.cover,
+      writer: detail ? detail.writer : entry.writer,
+      artist: detail ? detail.artist : entry.artist
     }));
-    marvelPick = null;
     save();
     render();
     toast('Added ' + entry.series + ' · ' + plural(issues.length, 'issue'));
@@ -1852,7 +1963,9 @@
 
   function applyTheme() {
     document.documentElement.setAttribute('data-theme', state.prefs.theme);
-    $('themeBtn').textContent = state.prefs.theme === 'dark' ? '☽' : '☀';
+    $('themeBtn').textContent = state.prefs.theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme';
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', state.prefs.theme === 'dark' ? '#131318' : '#f6f6f4');
   }
 
   /* ---------------- wiring ---------------- */
@@ -1874,13 +1987,26 @@
 
     $('addEntryBtn').addEventListener('click', function () { closeMoreMenu(); openEntryDialog(null); });
     $('emptyAddBtn').addEventListener('click', function () { openEntryDialog(null); });
+    /* One rule for every disclosure menu: clicking outside, or picking an item,
+       closes it. Selects inside a menu are left alone. */
     document.addEventListener('click', function (e) {
-      var menu = document.querySelector('.more-menu[open]');
-      if (menu && !menu.contains(e.target)) menu.removeAttribute('open');
+      Array.prototype.forEach.call(document.querySelectorAll('.menu[open], .more-menu[open]'), function (m) {
+        if (!m.contains(e.target)) m.removeAttribute('open');
+      });
+      var item = e.target.closest('.menu-item, .more-menu-panel .btn');
+      if (item) {
+        var owner = item.closest('.menu, .more-menu');
+        if (owner) owner.removeAttribute('open');
+      }
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape') return;
+      Array.prototype.forEach.call(document.querySelectorAll('.menu[open], .more-menu[open]'),
+        function (m) { m.removeAttribute('open'); });
     });
     function closeMoreMenu() {
-      var menu = document.querySelector('.more-menu[open]');
-      if (menu) menu.removeAttribute('open');
+      Array.prototype.forEach.call(document.querySelectorAll('.menu[open], .more-menu[open]'),
+        function (m) { m.removeAttribute('open'); });
     }
 
     $('bulkBtn').addEventListener('click', function () { closeMoreMenu(); openBulkDialog(); });
@@ -1888,6 +2014,7 @@
     $('emptyMarvelBtn').addEventListener('click', openMarvelDialog);
     $('emptyBulkBtn').addEventListener('click', openBulkDialog);
     $('newListBtn').addEventListener('click', newList);
+    $('newListBtnAlt').addEventListener('click', newList);
     $('renameListBtn').addEventListener('click', renameList);
     $('deleteListBtn').addEventListener('click', deleteList);
     /* Two ways in: the topbar button gives way on narrow screens, the sidebar one never does. */
@@ -2035,6 +2162,8 @@
     migrateV1: migrateV1,
     statusOf: statusOf,
     reorderById: reorderById,
+    seriesHue: seriesHue,
+    initialsOf: initialsOf,
     linkForIssue: linkForIssue,
     entryFromMeta: entryFromMeta,
     seriesName: seriesName,
@@ -2042,6 +2171,8 @@
     metaError: metaError,
     sortIssuesAscending: sortIssuesAscending,
     uniqueLabels: uniqueLabels,
+    marvelCoverUrl: marvelCoverUrl,
+    creditsFrom: creditsFrom,
     listProgress: listProgress,
     state: function () { return state; }
   };
