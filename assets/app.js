@@ -631,6 +631,8 @@
       var credits = creditsFrom(body.creators);
       return {
         cover: marvelCoverUrl(body.cover),
+        description: str(body.description, 1200),
+        pageCount: parseInt(body.pageCount, 10) || 0,
         writer: credits.writer,
         artist: credits.artist
       };
@@ -998,18 +1000,39 @@
     return h;
   }
 
+  var JOINERS = /^(the|of|and|a|an|in|to|vs|at|for)$/i;
+
   function initialsOf(name) {
-    var words = String(name || '').replace(/[^A-Za-z0-9 ]/g, ' ').trim().split(/\s+/);
-    if (!words[0]) return '?';
-    return (words.length > 1 ? words[0][0] + words[1][0] : words[0].slice(0, 2)).toUpperCase();
+    var words = String(name || '').replace(/[^A-Za-z0-9 ]/g, ' ').trim().split(/\s+/)
+      .filter(Boolean);
+    /* Skip joining words so "Books of Doom" reads BD, not BO. */
+    var significant = words.filter(function (w) { return !JOINERS.test(w); });
+    if (!significant.length) significant = words;
+    if (!significant.length) return '?';
+    return (significant.length > 1
+      ? significant[0][0] + significant[1][0]
+      : significant[0].slice(0, 2)).toUpperCase();
   }
 
-  function coverHtml(e) {
-    if (e.cover) {
-      return '<div class="cover"><img alt="" loading="lazy" src="' + esc(e.cover) + '"></div>';
-    }
-    return '<div class="cover cover-blank" style="--hue:' + seriesHue(e.series) + '">' +
-      '<span>' + esc(initialsOf(e.series)) + '</span></div>';
+  function coverHtml(e, opts) {
+    opts = opts || {};
+    var inner = e.cover
+      ? '<img alt="" loading="lazy" src="' + esc(e.cover) + '">'
+      : '<span class="cover-initials">' + esc(initialsOf(e.series)) + '</span>';
+    var cls = 'cover' + (e.cover ? '' : ' cover-blank') + (opts.big ? ' cover-big' : '');
+    var style = e.cover ? '' : ' style="--hue:' + seriesHue(e.series) + '"';
+    if (opts.plain) return '<div class="' + cls + '"' + style + '>' + inner + '</div>';
+    return '<button type="button" class="' + cls + '"' + style +
+      ' data-act="' + (opts.act || 'details') + '"' +
+      ' aria-label="' + esc(opts.label || ('Details for ' + e.series)) + '">' + inner + '</button>';
+  }
+
+  /* A cover that 404s should fall back to the colour block, not a broken-image icon. */
+  function blankCover(img, e) {
+    var holder = img.parentNode;
+    holder.classList.add('cover-blank');
+    holder.style.setProperty('--hue', seriesHue(e.series));
+    holder.innerHTML = '<span class="cover-initials">' + esc(initialsOf(e.series)) + '</span>';
   }
 
   function card(e, draggable) {
@@ -1059,15 +1082,8 @@
       '</div>' +
       (ui.expanded[e.id] ? issueTray(e, status) : '');
 
-    var img = el.querySelector('img');
-    if (img) {
-      img.addEventListener('error', function () {
-        var holder = img.parentNode;
-        holder.className = 'cover cover-blank';
-        holder.style.setProperty('--hue', seriesHue(e.series));
-        holder.innerHTML = '<span>' + esc(initialsOf(e.series)) + '</span>';
-      });
-    }
+    var img = el.querySelector('.cover img');
+    if (img) img.addEventListener('error', function () { blankCover(img, e); });
 
     /* The row itself opens the issues — the thing you actually came to do. Buttons,
        links and a finished drag all opt out. */
@@ -1075,7 +1091,9 @@
       var btn = ev.target.closest('[data-act]');
       if (btn) {
         var act = btn.dataset.act;
-        if (act === 'cycle') cycleEntry(e.id);
+        if (act === 'details') openDetailDialog(e.id);
+        else if (act === 'zoom') openImageViewer(e);
+        else if (act === 'cycle') cycleEntry(e.id);
         else if (act === 'toggle') toggleTray(e.id);
         else if (act === 'edit') openEntryDialog(e.id);
         else if (act === 'remove') removeEntry(e.id);
@@ -1590,6 +1608,99 @@
     toast('Added ' + entry.series + ' · ' + plural(issues.length, 'issue'));
   }
 
+  /* ---------------- entry details ---------------- */
+
+  var detailId = null;
+
+  /* Marvel issue ids are already in the per-issue links, so a description can be
+     fetched without storing anything extra. */
+  function marvelIssueId(url) {
+    var m = /\/comics\/issue\/(\d+)/.exec(String(url || ''));
+    return m ? m[1] : '';
+  }
+
+  function openDetailDialog(id) {
+    var e = findEntry(id);
+    if (!e) return;
+    detailId = id;
+
+    var done = doneCount(e);
+    var total = e.issues.length;
+    var pct = total ? Math.round((done / total) * 100) : 0;
+    var single = total === 1 && !e.issues[0].label;
+    var upNext = nextIssue(e);
+    var link = linkForIssue(e, upNext);
+    var svc = serviceFor(e);
+
+    var rows = [
+      ['Issues', single ? 'Single book' : summarizeIssues(e.issues)],
+      ['Writer', e.writer],
+      ['Artist', e.artist],
+      ['Publisher', e.publisher],
+      ['Year', e.year === '' || e.year == null ? '' : String(e.year)],
+      ['Read on', svc ? svc.name : ''],
+      ['Added', new Date(e.addedAt).toLocaleDateString()]
+    ].filter(function (r) { return r[1]; });
+
+    $('detailBody').innerHTML =
+      '<div class="detail-head">' +
+        coverHtml(e, { big: true, act: 'zoom', label: 'View ' + e.series + ' cover full size' }) +
+        '<div class="detail-headings">' +
+          '<h2 class="detail-title">' + esc(e.series) + '</h2>' +
+          (e.title ? '<div class="detail-arc">' + esc(e.title) + '</div>' : '') +
+          '<div class="detail-status ' + statusOf(e) + '">' + esc(STATUSES[statusOf(e)]) + '</div>' +
+          '<div class="entry-progress">' +
+            '<div class="entry-bar"><div class="entry-fill ' + statusOf(e) + '" style="width:' + pct + '%"></div></div>' +
+            '<span class="entry-count">' + done + '/' + total + '</span>' +
+          '</div>' +
+          (e.rating ? '<div class="card-stars">' + stars(e.rating) + '</div>' : '') +
+        '</div>' +
+      '</div>' +
+      '<dl class="detail-rows">' +
+        rows.map(function (r) {
+          return '<dt>' + esc(r[0]) + '</dt><dd>' + esc(r[1]) + '</dd>';
+        }).join('') +
+      '</dl>' +
+      '<p class="detail-desc" id="detailDesc" hidden></p>' +
+      (e.tags.length
+        ? '<div class="tags">' + e.tags.map(function (t) {
+            return '<span class="tag">' + esc(t) + '</span>'; }).join('') + '</div>'
+        : '') +
+      (e.notes ? '<p class="detail-notes">' + esc(e.notes) + '</p>' : '');
+
+    var read = $('detailRead');
+    if (link) {
+      read.href = link;
+      read.hidden = false;
+      read.textContent = single ? 'Read' : 'Read #' + upNext.label;
+    } else {
+      read.hidden = true;
+      read.removeAttribute('href');
+    }
+
+    $('detailDialog').showModal();
+
+    /* The blurb is a bonus: fetched after the sheet is already up, ignored if it fails. */
+    var issueId = marvelIssueId((e.issues[0] && e.issues[0].url) || e.url);
+    if (issueId) {
+      metaIssueDetail(issueId).then(function (info) {
+        if (detailId !== id || !info || !info.description) return;
+        var el = $('detailDesc');
+        if (!el) return;
+        el.textContent = info.description;
+        el.hidden = false;
+      });
+    }
+  }
+
+  function openImageViewer(e) {
+    if (!e.cover) return;
+    var img = $('viewerImage');
+    img.src = e.cover;
+    img.alt = e.series + ' cover';
+    $('imageDialog').showModal();
+  }
+
   /* ---------------- per-issue links ---------------- */
 
   var linkingId = null;
@@ -2047,6 +2158,26 @@
       else editingId = null;
     });
 
+    /* The card routes its own data-act clicks; the detail sheet lives outside any
+       card, so its cover needs its own handler. */
+    $('detailBody').addEventListener('click', function (ev) {
+      if (!ev.target.closest('[data-act="zoom"]') || !detailId) return;
+      var e = findEntry(detailId);
+      if (e) openImageViewer(e);
+    });
+
+    $('detailDialog').addEventListener('close', function () {
+      var action = $('detailDialog').returnValue;
+      var id = detailId;
+      detailId = null;
+      if (!id) return;
+      if (action === 'edit') openEntryDialog(id);
+      else if (action === 'links') openLinksDialog(id);
+    });
+
+    /* Tapping the picture, or anywhere around it, closes the full-size view. */
+    $('imageDialog').addEventListener('click', function () { $('imageDialog').close(); });
+
     $('linksDialog').addEventListener('close', function () {
       if ($('linksDialog').returnValue === 'save') saveLinksFromForm();
       else linkingId = null;
@@ -2164,6 +2295,7 @@
     reorderById: reorderById,
     seriesHue: seriesHue,
     initialsOf: initialsOf,
+    marvelIssueId: marvelIssueId,
     linkForIssue: linkForIssue,
     entryFromMeta: entryFromMeta,
     seriesName: seriesName,

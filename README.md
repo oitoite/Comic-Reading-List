@@ -48,6 +48,10 @@ Last Hunt` is one row that expands into three tickable issues.
 - **Search, filter, sort**, list or cover view, light and dark themes.
 - **Covers everywhere** — pulled automatically for Marvel entries. Anything without
   artwork gets a colour block keyed to the series name rather than an empty slot.
+- **Tap a cover for the details** — a sheet with the full title, creators, publisher,
+  year, service, tags, notes, rating and progress, none of it truncated the way a row
+  has to be. For Marvel entries it also fetches that issue's blurb. Tap the cover again
+  for the artwork full-screen.
 - **Save a copy** — one tap opens the iOS share sheet, so a backup lands in Files or
   iCloud Drive; elsewhere it downloads. **Restore** reads one back, including old v1
   backups. The sidebar says so when the only copy is the browser's.
@@ -152,6 +156,8 @@ The app is built for a phone first, so the chrome stays out of the way:
 - **Tap a row to open its issues.** That is the main gesture — the tray holds the issue
   pills plus the actions for that entry (start/finish, clear, per-issue links, edit,
   remove), so none of them take up space until you want them.
+- **Tap a cover for the details**, and the cover inside that for the full-size artwork.
+  A row can only show so much; the sheet shows everything.
 - **Two menus, not two rows of buttons.** The `⋯` beside the app name holds saving,
   restoring, services and the theme; the `⋯` beside the playlist name holds sharing,
   renaming, sort, service, view and delete.

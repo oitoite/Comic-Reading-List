@@ -307,6 +307,25 @@ Watchmen"></textarea>
   </form>
 </dialog>
 
+<!-- Entry details -->
+<dialog id="detailDialog" class="dialog detail-dialog">
+  <form method="dialog" class="dialog-form">
+    <button class="dialog-close" value="close" type="submit" formnovalidate
+            aria-label="Close details">&times;</button>
+    <div id="detailBody"></div>
+    <menu class="dialog-actions detail-actions">
+      <a class="btn primary" id="detailRead" target="_blank" rel="noopener noreferrer">Read</a>
+      <button class="btn ghost" value="links" type="submit" formnovalidate>Links</button>
+      <button class="btn ghost" value="edit" type="submit" formnovalidate>Edit</button>
+    </menu>
+  </form>
+</dialog>
+
+<!-- Full-size cover -->
+<dialog id="imageDialog" class="image-viewer" aria-label="Cover, full size">
+  <img id="viewerImage" alt="">
+</dialog>
+
 <!-- Per-issue links -->
 <dialog id="linksDialog" class="dialog">
   <form method="dialog" id="linksForm" class="dialog-form">
