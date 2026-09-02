@@ -102,7 +102,12 @@ code { font-family: var(--mono); font-size: .92em; background: var(--bg-sunken);
   border-bottom: 1px solid var(--line);
 }
 .brand { display: flex; align-items: baseline; gap: .5rem; margin-right: auto; }
-.brand h1 { font-size: 1.05rem; letter-spacing: .02em; white-space: nowrap; }
+.brand h1 {
+  /* The topbar is just the name and one menu now, so the full name fits at every
+     width — it scales down rather than being abbreviated. */
+  font-size: clamp(.82rem, 3.4vw, 1.05rem);
+  letter-spacing: .01em; white-space: nowrap;
+}
 .brand-mark { color: var(--accent); letter-spacing: -.15em; font-size: .9rem; }
 .topbar-actions { display: flex; align-items: center; gap: .4rem; }
 .only-mobile { display: none; }
@@ -507,10 +512,8 @@ body.is-reordering .card, body.is-reordering .nav-item {
   .content { padding: .9rem .9rem 6rem; }
   .grid-view { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
   .field-grid, .service-row { grid-template-columns: 1fr; }
+  /* The mark goes on a phone to buy the full name its width. */
   .brand-mark { display: none; }
-  /* "Unlimited Reading List" wraps in a phone topbar; the home-screen label is
-     "Reading List", so the header says the same thing. */
-  .desk-only { display: none; }
   .list-title-row h2 { font-size: 1.25rem; }
   .progress { max-width: none; }
 
@@ -532,7 +535,6 @@ body.is-reordering .card, body.is-reordering .nav-item {
   .chip { flex: 0 0 auto; }
 }
 @media (max-width: 380px) {
-  .brand h1 { font-size: .9rem; }
   .list-view .card-sub { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {

@@ -1861,7 +1861,7 @@
   }
 
   function backupName() {
-    return 'reading-list-' + new Date().toISOString().slice(0, 10) + '.json';
+    return 'unlimited-reading-list-' + new Date().toISOString().slice(0, 10) + '.json';
   }
 
   function markBackedUp() {
