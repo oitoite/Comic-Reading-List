@@ -169,7 +169,7 @@ public struct Service: Encodable, Hashable, Identifiable, Sendable {
 
 // MARK: - Preferences
 
-public enum SortOrder: String, Encodable, CaseIterable, Sendable {
+public enum EntrySortOrder: String, Encodable, CaseIterable, Sendable {
     case order, added, series, title, progress, year, rating
 
     public var displayName: String {
@@ -197,7 +197,7 @@ public enum Theme: String, Encodable, CaseIterable, Sendable {
 
 public struct Prefs: Encodable, Hashable, Sendable {
     public var theme: Theme
-    public var sort: SortOrder
+    public var sort: EntrySortOrder
     public var view: ViewMode
     /// Base URL of the comic metadata API; empty means the built-in default.
     public var metaApi: String
@@ -205,7 +205,7 @@ public struct Prefs: Encodable, Hashable, Sendable {
     public var backedUpAt: Double
     public var services: [Service]
 
-    public init(theme: Theme = .system, sort: SortOrder = .order, view: ViewMode = .list,
+    public init(theme: Theme = .system, sort: EntrySortOrder = .order, view: ViewMode = .list,
                 metaApi: String = "", backedUpAt: Double = 0, services: [Service] = Service.defaults) {
         self.theme = theme
         self.sort = sort

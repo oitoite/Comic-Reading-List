@@ -278,7 +278,7 @@ final class AppModel {
 
     // MARK: - Preferences
 
-    func setSort(_ sort: SortOrder) { state.prefs.sort = sort; scheduleSave() }
+    func setSort(_ sort: EntrySortOrder) { state.prefs.sort = sort; scheduleSave() }
     func setView(_ view: ViewMode) { state.prefs.view = view; scheduleSave() }
     func setTheme(_ theme: Theme) { state.prefs.theme = theme; scheduleSave() }
 
@@ -405,13 +405,15 @@ final class AppModel {
     private func scheduleSave() {
         saveTask?.cancel()
         let snapshot = state
-        saveTask = Task.detached(priority: .utility) { [store, weak self] in
+        // The outer task inherits the main actor, so reporting a failure is a plain call;
+        // only the file write itself hops off to a utility-priority detached task.
+        saveTask = Task { [store] in
             try? await Task.sleep(for: .milliseconds(250))
             guard !Task.isCancelled else { return }
-            do { try store.save(snapshot) }
-            catch {
-                let message = "Could not save: \(error.localizedDescription)"
-                await MainActor.run { self?.showToast(message) }
+            do {
+                try await Task.detached(priority: .utility) { try store.save(snapshot) }.value
+            } catch {
+                showToast("Could not save: \(error.localizedDescription)")
             }
         }
     }

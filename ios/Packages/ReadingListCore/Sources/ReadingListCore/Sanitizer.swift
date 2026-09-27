@@ -180,7 +180,7 @@ public enum Sanitizer {
         let themeRaw = str(p["theme"], 20)
         return Prefs(
             theme: Theme(rawValue: themeRaw) ?? .system,
-            sort: SortOrder(rawValue: str(p["sort"], 20)) ?? .order,
+            sort: EntrySortOrder(rawValue: str(p["sort"], 20)) ?? .order,
             view: ViewMode(rawValue: str(p["view"], 20)) ?? .list,
             metaApi: safeURL(p["metaApi"], 300),
             backedUpAt: millis(p["backedUpAt"], fallback: 0),

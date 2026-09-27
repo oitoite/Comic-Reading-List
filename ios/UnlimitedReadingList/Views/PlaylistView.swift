@@ -189,7 +189,7 @@ struct PlaylistView: View {
                 }
 
                 Picker("Sort", selection: Binding(get: { model.prefs.sort }, set: { model.setSort($0) })) {
-                    ForEach(SortOrder.allCases, id: \.self) { order in
+                    ForEach(EntrySortOrder.allCases, id: \.self) { order in
                         Text(order.displayName).tag(order)
                     }
                 }

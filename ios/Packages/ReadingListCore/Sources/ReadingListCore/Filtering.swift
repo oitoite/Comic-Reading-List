@@ -18,7 +18,7 @@ public struct EntryFilter {
 
 public enum EntryFiltering {
 
-    public static func visible(_ entries: [Entry], filter: EntryFilter, sort: SortOrder) -> [Entry] {
+    public static func visible(_ entries: [Entry], filter: EntryFilter, sort: EntrySortOrder) -> [Entry] {
         var result = entries
 
         if let status = filter.status {
@@ -49,7 +49,7 @@ public enum EntryFiltering {
     }
 
     /// `nil` for `.order`: entries keep whatever order they arrived in.
-    private static func comparator(for sort: SortOrder) -> ((Entry, Entry) -> Int)? {
+    private static func comparator(for sort: EntrySortOrder) -> ((Entry, Entry) -> Int)? {
         switch sort {
         case .order:
             return nil
