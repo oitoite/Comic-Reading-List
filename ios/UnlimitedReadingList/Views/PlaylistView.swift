@@ -210,6 +210,7 @@ struct PlaylistView: View {
 
                 Divider()
                 Button("Delete playlist", role: .destructive) { showDeleteConfirm = true }
+                    .disabled(model.lists.count == 1)
             } label: {
                 Label("Playlist menu", systemImage: "ellipsis.circle")
             }
