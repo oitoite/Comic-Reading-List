@@ -36,7 +36,6 @@ struct CoverThumb: View {
         }
         .frame(width: width, height: width / Metrics.coverAspect)
         .clipShape(RoundedRectangle(cornerRadius: Metrics.coverRadius, style: .continuous))
-        .accessibilityHidden(true)
     }
 
     private var placeholder: some View {

@@ -35,6 +35,8 @@ struct EntryRow: View {
 
                 CoverThumb(entry: entry, width: Metrics.rowCoverWidth)
                     .onTapGesture { showDetail = true }
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityLabel("Details for \(entry.series)")
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(entry.series).font(.headline)

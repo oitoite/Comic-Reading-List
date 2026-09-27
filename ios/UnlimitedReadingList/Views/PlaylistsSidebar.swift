@@ -18,8 +18,16 @@ struct PlaylistsSidebar: View {
     @State private var showServices = false
     @State private var showAbout = false
 
+    /// Local so it can go nil: on a phone the split view clears the selection when the
+    /// user backs out, and if the binding refused nil, tapping the same playlist again
+    /// would be a no-op. The model only ever hears about real choices.
+    @State private var selectedID: String?
+
     private var selection: Binding<String?> {
-        Binding(get: { model.activeListID }, set: { if let id = $0 { model.activeListID = id } })
+        Binding(get: { selectedID }, set: { id in
+            selectedID = id
+            if let id { model.activeListID = id }
+        })
     }
 
     var body: some View {
@@ -64,6 +72,8 @@ struct PlaylistsSidebar: View {
             }
         }
         .navigationTitle("Playlists")
+        .onAppear { if selectedID == nil { selectedID = model.activeListID } }
+        .onChange(of: model.activeListID) { _, id in selectedID = id }
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button {
