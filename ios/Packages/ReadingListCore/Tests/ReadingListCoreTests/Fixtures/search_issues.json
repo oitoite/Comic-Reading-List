@@ -1,0 +1,32 @@
+{
+  "items": [
+    {
+      "seriesId": 2001,
+      "seriesName": "Fantastic Four (1998 - 2012)",
+      "issueNumber": "1",
+      "title": "The Fantastic",
+      "detailUrl": "https://www.marvel.com/comics/issue/11111/fantastic_four_1998_1",
+      "unlimitedDate": "2019-01-01",
+      "yearPage": 1998
+    },
+    {
+      "seriesId": 2001,
+      "seriesName": "Fantastic Four (1998 - 2012)",
+      "issueNumber": "2",
+      "title": "Four Against the World",
+      "detailUrl": "https://www.marvel.com/comics/issue/11112/fantastic_four_1998_2",
+      "unlimitedDate": "",
+      "yearPage": 1998
+    },
+    {
+      "seriesId": 3002,
+      "seriesName": "Fantastic Four (2018 - Present)",
+      "issueNumber": "1",
+      "title": "The Fantastic Four Are..?",
+      "detailUrl": "https://www.marvel.com/comics/issue/22221/fantastic_four_2018_1",
+      "unlimitedDate": "2019-08-01",
+      "yearPage": 2018
+    }
+  ],
+  "total": 3
+}

@@ -1,0 +1,43 @@
+{
+  "items": [
+    {
+      "id": 11113,
+      "seriesId": 2001,
+      "issueNumber": "3",
+      "title": "Into the Time Stream",
+      "detailUrl": "https://www.marvel.com/comics/issue/11113/fantastic_four_1998_3",
+      "unlimitedDate": "2019-01-15",
+      "yearPage": 1999
+    },
+    {
+      "id": 11111,
+      "seriesId": 2001,
+      "issueNumber": "1",
+      "title": "The Fantastic",
+      "detailUrl": "https://www.marvel.com/comics/issue/11111/fantastic_four_1998_1",
+      "unlimitedDate": "2019-01-01",
+      "yearPage": 1998
+    },
+    {
+      "id": 11112,
+      "seriesId": 2001,
+      "issueNumber": "2",
+      "title": "Four Against the World",
+      "detailUrl": "https://www.marvel.com/comics/issue/11112/fantastic_four_1998_2",
+      "unlimitedDate": "",
+      "yearPage": 1998
+    },
+    {
+      "id": 11199,
+      "seriesId": 2001,
+      "issueNumber": "Annual",
+      "title": "Annual",
+      "detailUrl": "https://www.marvel.com/comics/issue/11199/fantastic_four_1998_annual",
+      "unlimitedDate": "2019-06-01",
+      "yearPage": 1999
+    }
+  ],
+  "total": 4,
+  "has_next": false,
+  "series_name": "Fantastic Four (1998 - 2012)"
+}
