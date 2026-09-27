@@ -33,9 +33,18 @@ public final class FileStateStore: StateStoring {
         let tempURL = directory.appendingPathComponent(fileName + ".tmp-\(UUID().uuidString)")
         try data.write(to: tempURL, options: .atomic)
         if FileManager.default.fileExists(atPath: fileURL.path) {
-            try? FileManager.default.removeItem(at: fileURL)
+            #if canImport(Darwin)
+            // replaceItemAt swaps in one step, so there is never a moment with no file at all.
+            _ = try FileManager.default.replaceItemAt(fileURL, withItemAt: tempURL)
+            #else
+            // swift-corelibs-foundation's replaceItemAt is unreliable; remove-then-move is
+            // the best Linux can do, and Linux is only the test host.
+            try FileManager.default.removeItem(at: fileURL)
+            try FileManager.default.moveItem(at: tempURL, to: fileURL)
+            #endif
+        } else {
+            try FileManager.default.moveItem(at: tempURL, to: fileURL)
         }
-        try FileManager.default.moveItem(at: tempURL, to: fileURL)
     }
 
     public func load() throws -> AppState? {
