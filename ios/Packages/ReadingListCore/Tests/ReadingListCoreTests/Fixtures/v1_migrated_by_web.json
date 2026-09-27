@@ -1,0 +1,113 @@
+{
+ "lists": [
+  {
+   "entries": [
+    {
+     "addedAt": 1700000001000,
+     "artist": "Zeck",
+     "cover": "http://x/c.jpg",
+     "issues": [
+      {
+       "done": true,
+       "label": "294",
+       "url": ""
+      },
+      {
+       "done": true,
+       "label": "295",
+       "url": ""
+      },
+      {
+       "done": true,
+       "label": "296",
+       "url": ""
+      }
+     ],
+     "notes": "n",
+     "publisher": "Marvel",
+     "rating": 4,
+     "series": "The Amazing Spider-Man",
+     "service": "",
+     "started": false,
+     "tags": [
+      "classic"
+     ],
+     "title": "Kraven's Last Hunt",
+     "url": "",
+     "writer": "DeMatteis",
+     "year": 1987
+    },
+    {
+     "addedAt": 1700000002000,
+     "artist": "",
+     "cover": "",
+     "issues": [
+      {
+       "done": false,
+       "label": "",
+       "url": ""
+      }
+     ],
+     "notes": "",
+     "publisher": "",
+     "rating": 0,
+     "series": "Watchmen",
+     "service": "",
+     "started": true,
+     "tags": [],
+     "title": "",
+     "url": "",
+     "writer": "",
+     "year": 1986
+    },
+    {
+     "addedAt": 1700000003000,
+     "artist": "",
+     "cover": "",
+     "issues": [
+      {
+       "done": false,
+       "label": "Annual 1",
+       "url": ""
+      },
+      {
+       "done": false,
+       "label": "Annual 2",
+       "url": ""
+      },
+      {
+       "done": false,
+       "label": "Annual 3",
+       "url": ""
+      },
+      {
+       "done": false,
+       "label": "5.MU",
+       "url": ""
+      }
+     ],
+     "notes": "",
+     "publisher": "",
+     "rating": 0,
+     "series": "X-Men",
+     "service": "",
+     "started": false,
+     "tags": [
+      "a",
+      "b"
+     ],
+     "title": "Annuals",
+     "url": "",
+     "writer": "",
+     "year": null
+    }
+   ],
+   "id": "l1",
+   "name": "Old shelf",
+   "service": "mu"
+  }
+ ],
+ "sort": "order",
+ "theme": "light",
+ "view": "grid"
+}
