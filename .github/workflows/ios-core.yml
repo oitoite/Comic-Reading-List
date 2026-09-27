@@ -1,0 +1,22 @@
+# Builds and tests the iOS app's logic package on Linux. Everything that is not a
+# SwiftUI view lives in ios/Packages/ReadingListCore precisely so it can run here
+# without a Mac runner; the app target itself needs Xcode.
+name: iOS core tests
+
+on:
+  push:
+    paths: ["ios/Packages/**", ".github/workflows/ios-core.yml"]
+  pull_request:
+    paths: ["ios/Packages/**", ".github/workflows/ios-core.yml"]
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: "6.1"
+      - run: sudo apt-get update && sudo apt-get install -y zlib1g-dev
+      - run: swift test
+        working-directory: ios/Packages/ReadingListCore

@@ -202,6 +202,13 @@ A v1 list (`longbox.state.v1`) is migrated automatically the first time you open
 The v1 key is **left in place untouched** as a backup, so the old data survives even if
 something about the migration surprises you.
 
+## iOS app
+
+A native SwiftUI version lives in [`ios/`](ios/README.md). It shares the data format with the
+site — backups and share links move between the two — and adds an *Up next* card, swipe actions,
+the Files and share sheets, and an iPad layout. Its logic is a Swift package that builds and tests
+on Linux; the app target needs Xcode 16 or later.
+
 ## Publishing on GitHub Pages
 
 Either approach works:

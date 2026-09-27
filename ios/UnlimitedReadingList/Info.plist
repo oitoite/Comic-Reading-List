@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Everything else is generated from build settings (GENERATE_INFOPLIST_FILE). Only the
+	     keys that cannot be expressed as INFOPLIST_KEY_ settings live here. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>CFBundleURLName</key>
+			<string>com.oitoite.UnlimitedReadingList.share</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>unlimitedreadinglist</string>
+			</array>
+		</dict>
+	</array>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<!-- Marvel's image CDN sometimes hands out http:// cover URLs; the app upgrades them to
+		     https, so no exception is needed. Kept explicit so the intent is visible. -->
+		<key>NSAllowsArbitraryLoads</key>
+		<false/>
+	</dict>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<true/>
+	</dict>
+</dict>
+</plist>
