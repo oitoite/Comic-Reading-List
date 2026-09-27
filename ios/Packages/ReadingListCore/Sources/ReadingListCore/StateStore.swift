@@ -6,12 +6,13 @@ import Foundation
 // `localStorage['longbox.playlists.v2']` file: one JSON document, sanitized on the way
 // back in so a corrupt or foreign file never crashes the app or silently wipes it.
 
-public protocol StateStoring {
+public protocol StateStoring: Sendable {
     func load() throws -> AppState?
     func save(_ state: AppState) throws
 }
 
-public final class FileStateStore: StateStoring {
+/// Holds only two immutable values, so it is safe to hand to a detached save task.
+public final class FileStateStore: StateStoring, @unchecked Sendable {
 
     private let directory: URL
     private let fileName: String

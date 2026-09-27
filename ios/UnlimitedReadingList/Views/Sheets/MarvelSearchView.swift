@@ -100,8 +100,8 @@ final class MarvelSearchModel {
         pickTask = Task { [weak self] in
             guard let self else { return }
             do {
-                let res = try await metadata.seriesIssues(series.id) { got, total in
-                    Task { @MainActor [weak self] in
+                let res = try await metadata.seriesIssues(series.id) { [weak self] got, total in
+                    Task { @MainActor in
                         guard let self, self.selected?.id == series.id else { return }
                         self.status = "Loading issues… \(got) of \(total)"
                     }
